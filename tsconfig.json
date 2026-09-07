@@ -1,0 +1,12 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "comment": "supabase/functions runs on Deno with remote URL imports — it is typechecked by the Supabase CLI, not by the app's tsc.",
+  "exclude": ["node_modules", "supabase/functions"]
+}

@@ -14,6 +14,7 @@ import {
 import { alpha, color, gutter } from '@/theme/tokens';
 import { font, text } from '@/theme/type';
 import { formatMoney } from '@/lib/format';
+import { shareDocument } from '@/lib/documents';
 import { useQuotations } from '@/data/queries';
 import type { QuotationRow } from '@/data/queries';
 import { useConvertQuotation } from '@/data/mutations';
@@ -25,6 +26,7 @@ export default function QuotationsScreen() {
   const router = useRouter();
   const quotations = useQuotations();
   const convert = useConvertQuotation();
+  const [sharing, setSharing] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('all');
 
   const rows = useMemo(() => quotations.data ?? [], [quotations.data]);
@@ -46,6 +48,22 @@ export default function QuotationsScreen() {
     if (tab === 'accepted') return quote.status === 'accepted';
     return quote.status === 'draft';
   });
+
+  const onShare = async (id: string) => {
+    setSharing(id);
+    try {
+      await shareDocument('quotation', id);
+    } catch (e) {
+      Alert.alert(
+        'Could not share the PDF',
+        e instanceof Error
+          ? `${e.message}\n\nIf the function is missing, deploy it with:\nsupabase functions deploy generate-invoice-pdf`
+          : 'Unknown error.',
+      );
+    } finally {
+      setSharing(null);
+    }
+  };
 
   const onConvert = async (quote: QuotationRow) => {
     try {
@@ -112,6 +130,13 @@ export default function QuotationsScreen() {
                 <Badge label={badge.label} tone={badge.tone} />
               </View>
 
+              <View style={styles.shareRow}>
+                <PillButton
+                  label={sharing === quote.id ? 'Preparing…' : 'Share PDF'}
+                  onPress={() => void onShare(quote.id)}
+                />
+              </View>
+
               {accepted ? (
                 <View style={styles.convertRow}>
                   <Text style={styles.convertLabel}>
@@ -139,6 +164,7 @@ export default function QuotationsScreen() {
 }
 
 const styles = StyleSheet.create({
+  shareRow: { marginTop: 12, flexDirection: 'row' },
   filters: { marginTop: 16 },
   list: { marginTop: 18, paddingHorizontal: gutter.screen, gap: 8 },
   card: { paddingVertical: 15, paddingHorizontal: 16 },

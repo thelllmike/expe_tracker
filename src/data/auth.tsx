@@ -11,9 +11,18 @@ type AuthState = {
   /** True until the persisted session has been read back from storage. */
   loading: boolean;
   sendMagicLink: (email: string) => Promise<void>;
+  /** Resolves 'confirm' when Supabase requires the emailed link before signing in. */
+  signUpWithPassword: (a: Credentials & { fullName: string }) => Promise<'session' | 'confirm'>;
+  signInWithPassword: (a: Credentials) => Promise<void>;
+  resendConfirmation: (email: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 };
+
+export type Credentials = { email: string; password: string };
+
+/** Supabase's wording for an account that exists but has not clicked the link. */
+export const NEEDS_CONFIRMATION = 'email-not-confirmed';
 
 const AuthContext = createContext<AuthState | null>(null);
 
@@ -70,6 +79,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => sub.remove();
   }, [consumeAuthUrl]);
 
+  const signUpWithPassword = useCallback(
+    async ({ email, password, fullName }: Credentials & { fullName: string }) => {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          emailRedirectTo: Linking.createURL('/auth-callback'),
+          // The signup trigger reads full_name out of raw_user_meta_data to fill
+          // in the profile row and its initials.
+          data: { full_name: fullName.trim() },
+        },
+      });
+      if (error) throw error;
+      // With email confirmation on, signUp returns a user but no session.
+      return data.session ? 'session' : 'confirm';
+    },
+    [],
+  );
+
+  const signInWithPassword = useCallback(async ({ email, password }: Credentials) => {
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) {
+      // Surface the unconfirmed case as a code the screen can offer a resend for.
+      if (/confirm/i.test(error.message)) throw new Error(NEEDS_CONFIRMATION);
+      throw error;
+    }
+  }, []);
+
+  const resendConfirmation = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim(),
+      options: { emailRedirectTo: Linking.createURL('/auth-callback') },
+    });
+    if (error) throw error;
+  }, []);
+
   const sendMagicLink = useCallback(async (email: string) => {
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
@@ -99,8 +145,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ session, loading, sendMagicLink, signInWithGoogle, signOut }),
-    [session, loading, sendMagicLink, signInWithGoogle, signOut],
+    () => ({
+      session,
+      loading,
+      sendMagicLink,
+      signUpWithPassword,
+      signInWithPassword,
+      resendConfirmation,
+      signInWithGoogle,
+      signOut,
+    }),
+    [
+      session,
+      loading,
+      sendMagicLink,
+      signUpWithPassword,
+      signInWithPassword,
+      resendConfirmation,
+      signInWithGoogle,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

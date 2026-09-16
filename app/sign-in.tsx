@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { alpha, color, gutter, radius } from '@/theme/tokens';
 import { font, text } from '@/theme/type';
-import { useAuth } from '@/data/auth';
+import { NEEDS_CONFIRMATION, useAuth } from '@/data/auth';
 
 const STEPS = [
   'Name your businesses',
@@ -20,43 +20,128 @@ const STEPS = [
   'Link a bank or start manually',
 ];
 
+/** Supabase's own default minimum. */
+const MIN_PASSWORD = 6;
+
+type Mode = 'signin' | 'signup';
+type Status = 'idle' | 'busy' | 'google' | 'linkSent';
+
 /**
- * Screen 14. The design shows a phone + Apple flow; the stack is Supabase email
- * and Google, so the same layout carries an email field and a Google button.
+ * Screen 14. Email and password against Supabase, with Google alongside and the
+ * magic link kept as a fallback. A new account is confirmed by email before it
+ * can sign in, so sign-up ends on the "check your inbox" panel rather than in
+ * the app.
  */
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
-  const { sendMagicLink, signInWithGoogle } = useAuth();
+  const {
+    signInWithPassword,
+    signUpWithPassword,
+    resendConfirmation,
+    sendMagicLink,
+    signInWithGoogle,
+  } = useAuth();
 
+  const [mode, setMode] = useState<Mode>('signin');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'google'>('idle');
+  const [password, setPassword] = useState('');
+  const [reveal, setReveal] = useState(false);
+  const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [needsConfirm, setNeedsConfirm] = useState(false);
+  /** Set once the confirmation mail is out — the form is replaced by the notice. */
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
+  const [resent, setResent] = useState(false);
 
+  const signup = mode === 'signup';
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const passwordValid = password.length >= MIN_PASSWORD;
+  const nameValid = !signup || name.trim().length > 0;
+  const canSubmit = emailValid && passwordValid && nameValid && status !== 'busy';
 
-  const onSendLink = async () => {
-    if (!emailValid || status === 'sending') return;
-    setStatus('sending');
+  const fail = (e: unknown, fallback: string) => {
+    if (e instanceof Error && e.message === NEEDS_CONFIRMATION) {
+      setNeedsConfirm(true);
+      setError('That email is not confirmed yet. Check your inbox for the link.');
+      return;
+    }
+    setError(e instanceof Error ? e.message : fallback);
+  };
+
+  const reset = () => {
+    setError(null);
+    setNeedsConfirm(false);
+    setResent(false);
+  };
+
+  const onSubmit = async () => {
+    if (!canSubmit) return;
+    setStatus('busy');
+    reset();
+    try {
+      if (signup) {
+        const outcome = await signUpWithPassword({ email, password, fullName: name });
+        // 'session' means confirmation is switched off in the project — the auth
+        // listener picks the session up and the root layout routes onward.
+        if (outcome === 'confirm') setAwaitingConfirm(true);
+      } else {
+        await signInWithPassword({ email, password });
+      }
+    } catch (e) {
+      fail(e, signup ? 'Could not create the account.' : 'Could not sign in.');
+    } finally {
+      setStatus('idle');
+    }
+  };
+
+  const onResend = async () => {
+    setStatus('busy');
     setError(null);
     try {
-      await sendMagicLink(email);
-      setStatus('sent');
+      await resendConfirmation(email);
+      setResent(true);
     } catch (e) {
+      fail(e, 'Could not resend the email.');
+    } finally {
       setStatus('idle');
-      setError(e instanceof Error ? e.message : 'Could not send the link.');
     }
+  };
+
+  const onMagicLink = async () => {
+    if (!emailValid) {
+      setError('Enter your email address first.');
+      return;
+    }
+    setStatus('busy');
+    reset();
+    try {
+      await sendMagicLink(email);
+      setStatus('linkSent');
+      return;
+    } catch (e) {
+      fail(e, 'Could not send the link.');
+    }
+    setStatus('idle');
   };
 
   const onGoogle = async () => {
     setStatus('google');
-    setError(null);
+    reset();
     try {
       await signInWithGoogle();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Google sign-in failed.');
+      fail(e, 'Google sign-in failed.');
     } finally {
       setStatus('idle');
     }
+  };
+
+  const switchMode = () => {
+    setMode(signup ? 'signin' : 'signup');
+    setPassword('');
+    reset();
+    setStatus('idle');
   };
 
   return (
@@ -73,72 +158,237 @@ export default function SignInScreen() {
           <Text style={styles.logoLetter}>L</Text>
         </View>
 
-        <Text style={[text.authTitle, styles.title]}>Every business,{'\n'}one ledger.</Text>
-        <Text style={styles.lede}>
-          Track spend, watch profit and send invoices for as many businesses as you run.
-        </Text>
-
-        <View style={styles.field}>
-          <Text style={styles.fieldLabel}>EMAIL</Text>
-          <TextInput
-            value={email}
-            onChangeText={(next) => {
-              setEmail(next);
-              if (status === 'sent') setStatus('idle');
+        {awaitingConfirm ? (
+          <ConfirmNotice
+            email={email.trim()}
+            resent={resent}
+            busy={status === 'busy'}
+            error={error}
+            onResend={onResend}
+            onBack={() => {
+              setAwaitingConfirm(false);
+              setMode('signin');
+              setPassword('');
+              reset();
             }}
-            placeholder="you@business.com"
-            placeholderTextColor={alpha.onInk50}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            autoCorrect={false}
-            inputMode="email"
-            returnKeyType="go"
-            onSubmitEditing={onSendLink}
-            style={styles.input}
-            accessibilityLabel="Email address"
+            bottomInset={insets.bottom}
           />
-        </View>
+        ) : (
+          <>
+            <Text style={[text.authTitle, styles.title]}>
+              {signup ? 'Start your\nledger.' : 'Every business,\none ledger.'}
+            </Text>
+            <Text style={styles.lede}>
+              {signup
+                ? 'Create an account and confirm your email. Then add your first business.'
+                : 'Track spend, watch profit and send invoices for as many businesses as you run.'}
+            </Text>
 
-        <PrimaryButton
-          label={
-            status === 'sending' ? 'Sending…' : status === 'sent' ? 'Link sent — check your inbox' : 'Send me a link'
-          }
-          onPress={onSendLink}
-          disabled={!emailValid || status === 'sending'}
-        />
-        <OutlineButton
-          label={status === 'google' ? 'Opening Google…' : 'Continue with Google'}
-          onPress={onGoogle}
-          disabled={status === 'google'}
-        />
+            {signup ? (
+              <Field label="NAME">
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Your name"
+                  placeholderTextColor={alpha.onInk50}
+                  autoCapitalize="words"
+                  autoComplete="name"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                  style={styles.input}
+                  accessibilityLabel="Your name"
+                />
+              </Field>
+            ) : null}
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {status === 'sent' ? (
-          <Text style={styles.hint}>
-            Open the link on this device and Ledger will sign you in.
-          </Text>
-        ) : null}
+            <Field label="EMAIL">
+              <TextInput
+                value={email}
+                onChangeText={(next) => {
+                  setEmail(next);
+                  if (status === 'linkSent') setStatus('idle');
+                  reset();
+                }}
+                placeholder="you@business.com"
+                placeholderTextColor={alpha.onInk50}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                autoCorrect={false}
+                inputMode="email"
+                returnKeyType="next"
+                style={styles.input}
+                accessibilityLabel="Email address"
+              />
+            </Field>
 
-        <View style={styles.steps}>
-          <Text style={styles.fieldLabel}>SET UP IN THREE STEPS</Text>
-          <View style={styles.stepList}>
-            {STEPS.map((label, i) => (
-              <View key={label} style={styles.step}>
-                <View style={[styles.stepBullet, i === 0 && styles.stepBulletActive]}>
-                  <Text style={styles.stepNumber}>{i + 1}</Text>
-                </View>
-                <Text style={[styles.stepLabel, i > 0 && styles.stepLabelMuted]}>{label}</Text>
+            <Field
+              label="PASSWORD"
+              trailing={
+                <Pressable onPress={() => setReveal((v) => !v)} accessibilityRole="button" hitSlop={8}>
+                  <Text style={styles.reveal}>{reveal ? 'HIDE' : 'SHOW'}</Text>
+                </Pressable>
+              }
+            >
+              <TextInput
+                value={password}
+                onChangeText={(next) => {
+                  setPassword(next);
+                  reset();
+                }}
+                placeholder={signup ? `At least ${MIN_PASSWORD} characters` : 'Your password'}
+                placeholderTextColor={alpha.onInk50}
+                secureTextEntry={!reveal}
+                autoCapitalize="none"
+                autoComplete={signup ? 'new-password' : 'current-password'}
+                autoCorrect={false}
+                returnKeyType="go"
+                onSubmitEditing={onSubmit}
+                style={styles.input}
+                accessibilityLabel="Password"
+              />
+            </Field>
+
+            {signup && password.length > 0 && !passwordValid ? (
+              <Text style={styles.hint}>
+                Passwords need at least {MIN_PASSWORD} characters.
+              </Text>
+            ) : null}
+
+            <PrimaryButton
+              label={
+                status === 'busy'
+                  ? signup
+                    ? 'Creating account…'
+                    : 'Signing in…'
+                  : signup
+                    ? 'Create account'
+                    : 'Sign in'
+              }
+              onPress={onSubmit}
+              disabled={!canSubmit}
+            />
+            <OutlineButton
+              label={status === 'google' ? 'Opening Google…' : 'Continue with Google'}
+              onPress={onGoogle}
+              disabled={status === 'google'}
+            />
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {needsConfirm ? (
+              <Pressable onPress={onResend} accessibilityRole="button" disabled={status === 'busy'}>
+                <Text style={styles.link}>
+                  {resent ? 'Confirmation email sent.' : 'Resend the confirmation email'}
+                </Text>
+              </Pressable>
+            ) : null}
+            {status === 'linkSent' ? (
+              <Text style={styles.hint}>
+                Link sent. Open it on this device and Ledger will sign you in.
+              </Text>
+            ) : null}
+
+            <View style={styles.switchRow}>
+              <Text style={styles.switchText}>
+                {signup ? 'Already have an account?' : 'New to Ledger?'}
+              </Text>
+              <Pressable onPress={switchMode} accessibilityRole="button" hitSlop={8}>
+                <Text style={styles.switchLink}>{signup ? 'Sign in' : 'Create an account'}</Text>
+              </Pressable>
+            </View>
+
+            {!signup ? (
+              <Pressable onPress={onMagicLink} accessibilityRole="button" hitSlop={8}>
+                <Text style={styles.linkMuted}>Email me a sign-in link instead</Text>
+              </Pressable>
+            ) : null}
+
+            <View style={styles.steps}>
+              <Text style={styles.fieldLabel}>SET UP IN THREE STEPS</Text>
+              <View style={styles.stepList}>
+                {STEPS.map((label, i) => (
+                  <View key={label} style={styles.step}>
+                    <View style={[styles.stepBullet, i === 0 && styles.stepBulletActive]}>
+                      <Text style={styles.stepNumber}>{i + 1}</Text>
+                    </View>
+                    <Text style={[styles.stepLabel, i > 0 && styles.stepLabelMuted]}>{label}</Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-        </View>
+            </View>
 
-        <Text style={[styles.terms, { marginBottom: insets.bottom + 24 }]}>
-          By continuing you agree to the terms and privacy policy.
-        </Text>
+            <Text style={[styles.terms, { marginBottom: insets.bottom + 24 }]}>
+              By continuing you agree to the terms and privacy policy.
+            </Text>
+          </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+/** The "check your inbox" panel shown after a successful sign-up. */
+function ConfirmNotice({
+  email,
+  resent,
+  busy,
+  error,
+  onResend,
+  onBack,
+  bottomInset,
+}: {
+  email: string;
+  resent: boolean;
+  busy: boolean;
+  error: string | null;
+  onResend: () => void;
+  onBack: () => void;
+  bottomInset: number;
+}) {
+  return (
+    <>
+      <Text style={[text.authTitle, styles.title]}>Confirm your{'\n'}email.</Text>
+      <Text style={styles.lede}>
+        We sent a link to {email}. Open it on this device and Ledger will sign you in.
+      </Text>
+
+      <View style={styles.notice}>
+        <Text style={styles.fieldLabel}>NEXT</Text>
+        <Text style={styles.noticeBody}>
+          The link expires after a while. If it does, come back here and send a new one.
+        </Text>
+      </View>
+
+      <PrimaryButton
+        label={resent ? 'Email sent' : busy ? 'Sending…' : 'Resend the email'}
+        onPress={onResend}
+        disabled={busy || resent}
+      />
+      <OutlineButton label="Back to sign in" onPress={onBack} />
+
+      {error ? <Text style={[styles.error, { marginBottom: bottomInset + 24 }]}>{error}</Text> : null}
+      {!error ? <View style={{ height: bottomInset + 24 }} /> : null}
+    </>
+  );
+}
+
+function Field({
+  label,
+  trailing,
+  children,
+}: {
+  label: string;
+  trailing?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.field}>
+      <View style={styles.fieldHead}>
+        <Text style={styles.fieldLabel}>{label}</Text>
+        {trailing}
+      </View>
+      {children}
+    </View>
   );
 }
 
@@ -221,16 +471,23 @@ const styles = StyleSheet.create({
   },
 
   field: {
-    marginTop: 36,
+    marginTop: 14,
     padding: 18,
     borderRadius: radius.panel,
     backgroundColor: alpha.onInk08,
   },
+  fieldHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   fieldLabel: {
     fontFamily: font.sansSemi,
     fontSize: 10.5,
     letterSpacing: 10.5 * 0.14,
     color: alpha.onInk60,
+  },
+  reveal: {
+    fontFamily: font.sansSemi,
+    fontSize: 10.5,
+    letterSpacing: 10.5 * 0.14,
+    color: color.green,
   },
   input: {
     marginTop: 10,
@@ -238,6 +495,20 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: color.paper,
     padding: 0,
+  },
+
+  notice: {
+    marginTop: 28,
+    padding: 18,
+    borderRadius: radius.panel,
+    backgroundColor: alpha.onInk08,
+  },
+  noticeBody: {
+    marginTop: 10,
+    fontFamily: font.sans,
+    fontSize: 14,
+    lineHeight: 22,
+    color: alpha.onInk72,
   },
 
   cta: {
@@ -257,6 +528,23 @@ const styles = StyleSheet.create({
 
   error: { marginTop: 14, fontFamily: font.sans, fontSize: 13, color: '#FF9C8F' },
   hint: { marginTop: 14, fontFamily: font.sans, fontSize: 13, color: alpha.onInk66 },
+  link: {
+    marginTop: 12,
+    fontFamily: font.sansSemi,
+    fontSize: 13.5,
+    color: color.green,
+  },
+  linkMuted: {
+    marginTop: 16,
+    fontFamily: font.sans,
+    fontSize: 13.5,
+    color: alpha.onInk66,
+    textDecorationLine: 'underline',
+  },
+
+  switchRow: { marginTop: 22, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  switchText: { fontFamily: font.sans, fontSize: 13.5, color: alpha.onInk66 },
+  switchLink: { fontFamily: font.sansSemi, fontSize: 13.5, color: color.green },
 
   steps: { marginTop: 34, paddingTop: 22, borderTopWidth: 1, borderTopColor: alpha.onInk14 },
   stepList: { marginTop: 14, gap: 12 },

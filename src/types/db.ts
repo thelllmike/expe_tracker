@@ -49,6 +49,13 @@ export interface Tables {
     pay_link: string | null;
     iban: string | null;
     is_default: boolean;
+    logo_path: string | null;
+    brand_color: string | null;
+    bank_name: string | null;
+    bank_account_name: string | null;
+    bank_account_number: string | null;
+    bank_branch: string | null;
+    footer_contact: string | null;
   } & Timestamps;
 
   business_members: {
@@ -171,6 +178,8 @@ export interface Tables {
     pdf_path: string | null;
     sent_at: string | null;
     paid_at: string | null;
+    discount_minor: number;
+    advance_minor: number;
   } & Timestamps;
 
   invoice_items: {
@@ -206,6 +215,9 @@ export interface Tables {
     converted_invoice_id: string | null;
     sent_at: string | null;
     accepted_at: string | null;
+    discount_minor: number;
+    advance_minor: number;
+    pdf_path: string | null;
   } & Timestamps;
 
   quotation_items: {

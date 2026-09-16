@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -49,6 +49,9 @@ export default function NewQuotationScreen() {
   const [allowOnlineAccept, setAllowOnlineAccept] = useState(true);
   const [autoBill, setAutoBill] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Held as typed text so a half-entered figure like "1." does not snap back.
+  const [advanceText, setAdvanceText] = useState('');
+  const [discountText, setDiscountText] = useState('');
 
   const business = businesses.data?.find((b) => b.id === businessId) ?? businesses.data?.[0] ?? null;
   const activeBusinessId = businessId ?? business?.id ?? null;
@@ -82,6 +85,8 @@ export default function NewQuotationScreen() {
           taxRate,
           allowOnlineAccept,
           autoBill,
+          discountMinor: toMinor(discountText),
+          advanceMinor: toMinor(advanceText),
           items,
         },
         status,
@@ -180,9 +185,38 @@ export default function NewQuotationScreen() {
               <Text style={styles.totalLabel}>{formatMoney(totals.tax, activeCurrency)}</Text>
             </View>
           ) : null}
+          <View style={[styles.totalRow, styles.totalRowSpaced]}>
+            <Text style={styles.totalLabel}>Advance paid</Text>
+            <TextInput
+              value={advanceText}
+              onChangeText={setAdvanceText}
+              placeholder="0"
+              placeholderTextColor={color.muted2}
+              keyboardType="decimal-pad"
+              style={styles.adjustInput}
+              accessibilityLabel="Advance paid"
+            />
+          </View>
+          <View style={[styles.totalRow, styles.totalRowSpaced]}>
+            <Text style={styles.totalLabel}>Discount</Text>
+            <TextInput
+              value={discountText}
+              onChangeText={setDiscountText}
+              placeholder="0"
+              placeholderTextColor={color.muted2}
+              keyboardType="decimal-pad"
+              style={styles.adjustInput}
+              accessibilityLabel="Discount"
+            />
+          </View>
           <View style={styles.grandRow}>
             <Text style={styles.grandLabel}>Quoted total</Text>
-            <Text style={styles.grandValue}>{formatMoney(totals.total, activeCurrency)}</Text>
+            <Text style={styles.grandValue}>
+              {formatMoney(
+                Math.max(totals.total - toMinor(advanceText) - toMinor(discountText), 0),
+                activeCurrency,
+              )}
+            </Text>
           </View>
         </Card>
 
@@ -314,6 +348,14 @@ const styles = StyleSheet.create({
 
   totals: { marginTop: 14 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  adjustInput: {
+    minWidth: 90,
+    textAlign: 'right',
+    fontFamily: font.sans,
+    fontSize: 13,
+    color: color.ink,
+    padding: 0,
+  },
   totalRowSpaced: { marginTop: 8 },
   totalLabel: { fontFamily: font.sans, fontSize: 13, color: color.muted },
   grandRow: {
@@ -338,3 +380,9 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.6 },
 });
+
+/** "1,250.50" → 125050 minor units. Anything unparseable counts as zero. */
+function toMinor(value: string): number {
+  const n = Number(value.replace(/[^0-9.]/g, ''));
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}

@@ -109,6 +109,9 @@ export type InvoiceDraft = {
   taxRate: number;
   attachPaymentLink: boolean;
   isRecurring: boolean;
+  /** Shown above the total on the document and netted off the figure due. */
+  discountMinor?: number;
+  advanceMinor?: number;
   items: { description: string; detail?: string | null; qty: number; unitMinor: number }[];
 };
 
@@ -150,6 +153,8 @@ export function useSaveInvoice() {
         total_minor: totals.total,
         base_total_minor: totals.baseTotal,
         attach_payment_link: draft.attachPaymentLink,
+        discount_minor: draft.discountMinor ?? 0,
+        advance_minor: draft.advanceMinor ?? 0,
         is_recurring: draft.isRecurring,
         recurrence: draft.isRecurring ? 'monthly' : null,
         sent_at: status === 'sent' ? new Date().toISOString() : null,
@@ -249,6 +254,8 @@ export type QuotationDraft = {
   allowOnlineAccept: boolean;
   autoBill: boolean;
   items: { description: string; detail?: string | null; qty: number; unitMinor: number }[];
+  discountMinor?: number;
+  advanceMinor?: number;
 };
 
 export function useSaveQuotation() {
@@ -274,6 +281,8 @@ export function useSaveQuotation() {
         tax_minor: totals.tax,
         total_minor: totals.total,
         summary: draft.summary ?? null,
+        discount_minor: draft.discountMinor ?? 0,
+        advance_minor: draft.advanceMinor ?? 0,
         allow_online_accept: draft.allowOnlineAccept,
         auto_bill: draft.autoBill,
         sent_at: status === 'sent' ? new Date().toISOString() : null,
@@ -555,6 +564,14 @@ export type BusinessDraft = {
   taxRate: number;
   vatNumber: string | null;
   isDefault: boolean;
+  /** Branding and payment details that only the generated documents use. */
+  logoPath?: string | null;
+  brandColor?: string | null;
+  bankName?: string | null;
+  bankAccountName?: string | null;
+  bankAccountNumber?: string | null;
+  bankBranch?: string | null;
+  footerContact?: string | null;
   /** Create the starter category list alongside the first business. */
   seedCategories?: boolean;
 };
@@ -593,6 +610,13 @@ export function useSaveBusiness() {
         tax_rate: draft.taxRate,
         vat_number: draft.vatNumber,
         is_default: draft.isDefault,
+        logo_path: draft.logoPath ?? null,
+        brand_color: draft.brandColor ?? null,
+        bank_name: draft.bankName ?? null,
+        bank_account_name: draft.bankAccountName ?? null,
+        bank_account_number: draft.bankAccountNumber ?? null,
+        bank_branch: draft.bankBranch ?? null,
+        footer_contact: draft.footerContact ?? null,
       };
 
       const { data, error } = draft.id

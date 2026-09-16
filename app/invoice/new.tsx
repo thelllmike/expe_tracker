@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -55,6 +55,9 @@ export default function NewInvoiceScreen() {
   const [addingLine, setAddingLine] = useState(false);
   const [attachPaymentLink, setAttachPaymentLink] = useState(true);
   const [isRecurring, setIsRecurring] = useState(false);
+  // Held as typed text so a half-entered figure like "1." does not snap back.
+  const [advanceText, setAdvanceText] = useState('');
+  const [discountText, setDiscountText] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const business = businesses.data?.find((b) => b.id === businessId) ?? businesses.data?.[0] ?? null;
@@ -76,6 +79,8 @@ export default function NewInvoiceScreen() {
 
   const totals = invoiceTotals(items, taxRate, fxRate);
   const symbol = currencySymbol(activeCurrency);
+  const advanceMinor = toMinor(advanceText);
+  const discountMinor = toMinor(discountText);
   const canSave = Boolean(activeBusinessId) && items.length > 0 && !saveInvoice.isPending;
 
   const draft = () => ({
@@ -90,6 +95,8 @@ export default function NewInvoiceScreen() {
     taxRate,
     attachPaymentLink,
     isRecurring,
+    discountMinor,
+    advanceMinor,
     items,
   });
 
@@ -202,9 +209,38 @@ export default function NewInvoiceScreen() {
             </Text>
             <Text style={styles.totalLabel}>{formatMoney(totals.tax, activeCurrency)}</Text>
           </View>
+          <View style={[styles.totalRow, styles.totalRowSpaced]}>
+            <Text style={styles.totalLabel}>Advance paid</Text>
+            <TextInput
+              value={advanceText}
+              onChangeText={setAdvanceText}
+              placeholder="0"
+              placeholderTextColor={color.muted2}
+              keyboardType="decimal-pad"
+              style={styles.adjustInput}
+              accessibilityLabel="Advance paid"
+            />
+          </View>
+          <View style={[styles.totalRow, styles.totalRowSpaced]}>
+            <Text style={styles.totalLabel}>Discount</Text>
+            <TextInput
+              value={discountText}
+              onChangeText={setDiscountText}
+              placeholder="0"
+              placeholderTextColor={color.muted2}
+              keyboardType="decimal-pad"
+              style={styles.adjustInput}
+              accessibilityLabel="Discount"
+            />
+          </View>
           <View style={styles.grandRow}>
-            <Text style={styles.grandLabel}>Total</Text>
-            <Text style={styles.grandValue}>{formatMoney(totals.total, activeCurrency)}</Text>
+            <Text style={styles.grandLabel}>Total due</Text>
+            <Text style={styles.grandValue}>
+              {formatMoney(
+                Math.max(totals.total - advanceMinor - discountMinor, 0),
+                activeCurrency,
+              )}
+            </Text>
           </View>
           {activeCurrency !== base ? (
             <Text style={styles.baseNote}>
@@ -342,6 +378,14 @@ const styles = StyleSheet.create({
 
   totals: { marginTop: 14 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  adjustInput: {
+    minWidth: 90,
+    textAlign: 'right',
+    fontFamily: font.sans,
+    fontSize: 13,
+    color: color.ink,
+    padding: 0,
+  },
   totalRowSpaced: { marginTop: 8 },
   totalLabel: { fontFamily: font.sans, fontSize: 13, color: color.muted },
   grandRow: {
@@ -373,3 +417,9 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.6 },
 });
+
+/** "1,250.50" → 125050 minor units. Anything unparseable counts as zero. */
+function toMinor(value: string): number {
+  const n = Number(value.replace(/[^0-9.]/g, ''));
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}

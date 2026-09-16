@@ -3,8 +3,8 @@ import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, View } from 're
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
+import { generateDocument, shareDocument } from '@/lib/documents';
 import { BusinessTile, Button, NavBar } from '@/components';
-import { supabase } from '@/lib/supabase';
 import { alpha, color, gutter, radius, shadow } from '@/theme/tokens';
 import { font, text } from '@/theme/type';
 import { formatDay, formatMoney } from '@/lib/format';
@@ -19,7 +19,7 @@ export default function InvoicePreviewScreen() {
 
   const query = useInvoice(id);
   const markPaid = useMarkInvoicePaid();
-  const [busy, setBusy] = useState<'pdf' | null>(null);
+  const [busy, setBusy] = useState<'pdf' | 'share' | null>(null);
 
   const invoice = query.data?.invoice;
   const items = query.data?.items ?? [];
@@ -32,18 +32,30 @@ export default function InvoicePreviewScreen() {
     if (!invoice) return;
     setBusy('pdf');
     try {
-      const { data, error } = await supabase.functions.invoke('generate-invoice-pdf', {
-        body: { invoice_id: invoice.id },
-      });
-      if (error) throw error;
-      const url = (data as { url?: string })?.url;
-      if (!url) throw new Error('The function did not return a document URL.');
+      const { url } = await generateDocument('invoice', invoice.id);
       await WebBrowser.openBrowserAsync(url);
     } catch (e) {
       Alert.alert(
         'Could not generate the PDF',
         e instanceof Error
           ? `${e.message}\n\nDeploy the Edge Function with: supabase functions deploy generate-invoice-pdf`
+          : 'Unknown error.',
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const sharePdf = async () => {
+    if (!invoice) return;
+    setBusy('share');
+    try {
+      await shareDocument('invoice', invoice.id);
+    } catch (e) {
+      Alert.alert(
+        'Could not share the PDF',
+        e instanceof Error
+          ? `${e.message}\n\nIf the function is missing, deploy it with:\nsupabase functions deploy generate-invoice-pdf`
           : 'Unknown error.',
       );
     } finally {
@@ -62,16 +74,6 @@ export default function InvoicePreviewScreen() {
     const subject = encodeURIComponent(`${business?.name ?? 'Invoice'} · ${invoice.number}`);
     const body = encodeURIComponent(shareText);
     void Linking.openURL(`mailto:${to}?subject=${subject}&body=${body}`);
-  };
-
-  const sendWhatsApp = async () => {
-    const url = `whatsapp://send?text=${encodeURIComponent(shareText)}`;
-    const supported = await Linking.canOpenURL(url);
-    if (supported) {
-      void Linking.openURL(url);
-    } else {
-      Alert.alert('WhatsApp is not installed', 'Install WhatsApp to send from here.');
-    }
   };
 
   if (!invoice) {
@@ -174,10 +176,33 @@ export default function InvoicePreviewScreen() {
                   </Text>
                 </View>
               ) : null}
+              {invoice.advance_minor > 0 ? (
+                <View style={[styles.totalRow, styles.totalRowSpaced]}>
+                  <Text style={styles.totalLabel}>Advance</Text>
+                  <Text style={styles.totalLabel}>
+                    {formatMoney(invoice.advance_minor, invoice.currency, { decimals: true })}
+                  </Text>
+                </View>
+              ) : null}
+              {invoice.discount_minor > 0 ? (
+                <View style={[styles.totalRow, styles.totalRowSpaced]}>
+                  <Text style={styles.totalLabel}>Discount</Text>
+                  <Text style={styles.totalLabel}>
+                    {formatMoney(invoice.discount_minor, invoice.currency, { decimals: true })}
+                  </Text>
+                </View>
+              ) : null}
               <View style={styles.grandRow}>
                 <Text style={styles.grandLabel}>Total due</Text>
                 <Text style={styles.grandValue}>
-                  {formatMoney(invoice.total_minor, invoice.currency, { decimals: true })}
+                  {formatMoney(
+                    Math.max(
+                      invoice.total_minor - invoice.advance_minor - invoice.discount_minor,
+                      0,
+                    ),
+                    invoice.currency,
+                    { decimals: true },
+                  )}
                 </Text>
               </View>
             </View>
@@ -203,7 +228,13 @@ export default function InvoicePreviewScreen() {
 
       <View style={[styles.actions, { marginBottom: Math.max(insets.bottom, 20) }]}>
         <Button label="Email" height={44} onPress={sendEmail} />
-        <Button label="WhatsApp" height={44} variant="ink" onPress={sendWhatsApp} />
+        <Button
+          label={busy === 'share' ? 'Preparing…' : 'Share PDF'}
+          height={44}
+          variant="ink"
+          disabled={busy === 'share'}
+          onPress={sharePdf}
+        />
         <Button
           label="↻"
           height={44}

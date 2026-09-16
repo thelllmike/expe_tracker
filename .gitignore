@@ -16,3 +16,6 @@ ios/
 *.keystore
 *.jks
 build/
+
+# supabase CLI local state
+supabase/.temp/

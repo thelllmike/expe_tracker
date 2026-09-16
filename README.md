@@ -98,71 +98,64 @@ supabase functions deploy generate-invoice-pdf
 It reads `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`,
 all of which Supabase injects automatically.
 
-**5. Configure auth**
+The one function renders **both** invoices and quotations — post `{ invoice_id }`
+or `{ quotation_id }`. It returns a signed URL, and the app downloads that to a
+cache file before handing it to the system share sheet, which is what puts a real
+PDF attachment into WhatsApp rather than a bare link.
 
-- **Email**: on by default. Add `ledger://auth-callback` to
-  **Authentication → URL Configuration → Redirect URLs**.
-- **Google**: enable the provider under **Authentication → Providers**, add your
-  OAuth client ID and secret, and add the same redirect URL.
+### Document branding
 
-**6. Run**
+The generated PDF reproduces the business's own Canva invoice. Two pieces of
+that file are reused directly:
 
-```bash
-npm start
-```
+- **Corner artwork.** Extracted from `350.pdf.pdf` as transparent PNGs and
+  inlined in `assets.ts`. The Canva page is 630x876pt — A4 plus ~17pt of bleed —
+  so the crops are placed against that larger sheet and allowed to run off the
+  trimmed page, which is how the original prints.
+- **Layout.** Column positions, rule weights and the black header bar with its
+  navy overhang are measured from the same file.
 
-On first sign-in the home screen offers **Add a business**. Creating the first
-one also writes a starter set of expense categories (Cost of goods, Payroll,
-Rent, Utilities, Marketing, Software, Repairs, Travel, Professional fees, Bank
-charges, Other) so expense entry works immediately. Vendors, clients, accounts
-and further categories are created inline from the pickers that use them.
+**The typeface is a substitution.** The original is set in Garet, which Canva
+licenses and does not permit redistributing. The renderer bundles Poppins
+(SIL OFL, subset to Latin — 14KB a weight instead of 160KB) as the nearest free
+geometric sans. Drop real Garet `.ttf` files into `assets.ts` if you hold a
+licence and the documents become exact.
 
-## Building an APK
+Figures print bare — `1,500`, not `LKR 1,500.00` — matching the reference, with
+decimals shown only when an amount actually has them. The printed sheet carries
+BILLED TO and DATE only; due dates and quote expiry live in the app.
 
-`EXPO_PUBLIC_*` variables are **inlined into the JS bundle at build time**, not
-read at runtime. Wherever the bundle is built is where the values must exist.
+Each business still supplies its own **logo**, **PAY TO** bank block and
+**footer contact** line under DOCUMENT BRANDING when you create or edit it.
+Logos live in the public `logos` bucket keyed `<user-id>/<business-id>.<ext>`,
+public because the document gets forwarded to clients. PNG and JPEG only —
+the two formats pdf-lib can embed.
 
-- **Locally** (`npx expo run:android`, `eas build --local`) — the `.env` file is
-  picked up automatically.
-- **On EAS Build** — `.env` is gitignored and never uploaded, so the values live
-  in `eas.json` under each profile's `env` block. They are already set there.
+Invoices and quotations also carry an **advance** and a **discount**, which show
+above the total and come off the figure due.
 
-```bash
-npx eas login
-npx eas build:configure          # first time only, links the project
-npx eas build --platform android --profile preview   # produces an .apk
-```
+### Checking the PDF layout
 
-The `preview` profile sets `"buildType": "apk"` for a directly installable file;
-`production` builds an `.aab` for Play Store upload.
-
-### Building locally (no Expo account needed)
-
-Requires Android Studio for its bundled JDK 21 — the system Java 19 will not work
-with React Native 0.86.
+The renderer lives in `render.ts`, apart from the request handling, so it can be
+run without deploying:
 
 ```bash
-export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
-export ANDROID_HOME=$HOME/Library/Android/sdk
-npx expo prebuild --platform android      # regenerates android/
-cd android && ./gradlew assembleRelease
-# -> android/app/build/outputs/apk/release/app-release.apk
+cd /tmp && mkdir pdfcheck && cd pdfcheck && npm init -y
+npm i pdf-lib @pdf-lib/fontkit esbuild
+cp <repo>/supabase/functions/generate-invoice-pdf/{render.ts,assets.ts} .
+sed -i '' "s|https://esm.sh/pdf-lib@1.17.1|pdf-lib|; \
+           s|https://esm.sh/@pdf-lib/fontkit@1.1.1|@pdf-lib/fontkit|; \
+           s|'./assets.ts'|'./assets.js'|" render.ts
+npx esbuild assets.ts --format=esm --outfile=assets.js
+npx esbuild render.ts --bundle --format=esm --platform=node \
+  --external:pdf-lib --external:@pdf-lib/fontkit --outfile=render.mjs
+# then call render('invoice', row, items, null) and write the bytes to a file
 ```
 
-`android/gradle.properties` pins `reactNativeArchitectures=arm64-v8a`, which
-covers every Android phone since about 2017 and keeps the APK near 43 MB. Adding
-back `armeabi-v7a,x86,x86_64` builds a universal APK at roughly 101 MB, where
-43 MB of that is x86 code only an emulator ever runs.
-
-Release signing uses `android/app/ledger-release.keystore`, with its passwords in
-`android/gradle.properties`. Both are gitignored. **Keep a backup of that
-keystore** — Play Store updates must be signed with the same one, and losing it
-means the listing can never be updated.
-
-**Clear the cache if you change an env value.** Metro caches transformed modules
-and a stale cache will happily bake in an old — or missing — value, producing an
-app that cannot reach Supabase with no build error to warn you. Use
-`npx expo export --clear`, or `eas build --clear-cache`.
+`qlmanage -t -s 1600 -o . out.pdf` turns the result into a PNG to eyeball. Worth
+doing after any layout change: the totals, PAY TO and footer travel as one tail
+block that tightens its leading to stay on the page and breaks to a new one when
+it cannot, and that threshold is easy to move by accident.
 
 ### These credentials are public, by design
 

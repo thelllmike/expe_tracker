@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Text, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -18,6 +18,26 @@ import { AuthProvider, useAuth } from '@/data/auth';
 import { color } from '@/theme/tokens';
 
 void SplashScreen.preventAutoHideAsync();
+
+/**
+ * expo-router picks this up for anything that throws while rendering the tree.
+ * Without it a crash in a child route paints a blank white screen and says
+ * nothing; this at least puts the message where it can be read.
+ */
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: color.ink, padding: 24, justifyContent: 'center' }}>
+      <Text style={{ color: '#FF9C8F', fontSize: 18, marginBottom: 12 }}>Ledger failed to start</Text>
+      <Text style={{ color: '#FFFFFF', fontSize: 13, lineHeight: 20 }}>{error.message}</Text>
+      <Text
+        onPress={() => void retry()}
+        style={{ color: '#FFFFFF', fontSize: 15, marginTop: 24, textDecorationLine: 'underline' }}
+      >
+        Try again
+      </Text>
+    </View>
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,13 +60,30 @@ export default function RootLayout() {
     InstrumentSerif_400Regular,
   });
 
+  // The design is built on these two families, so we wait for them — but never
+  // forever. A stalled font fetch used to leave `return null` on screen as a
+  // blank white page with nothing in the logs; after this timeout we render in
+  // the system face instead, which is ugly for a moment but always visible.
+  const [fontTimedOut, setFontTimedOut] = useState(false);
   useEffect(() => {
-    if (fontsLoaded || fontError) void SplashScreen.hideAsync();
+    if (fontsLoaded || fontError) return;
+    const t = setTimeout(() => setFontTimedOut(true), 4000);
+    return () => clearTimeout(t);
   }, [fontsLoaded, fontError]);
 
-  // Render nothing rather than a flash of fallback type — the whole design is
-  // built on these two families.
-  if (!fontsLoaded && !fontError) return null;
+  const fontsSettled = fontsLoaded || !!fontError || fontTimedOut;
+
+  useEffect(() => {
+    if (fontsSettled) void SplashScreen.hideAsync();
+  }, [fontsSettled]);
+
+  useEffect(() => {
+    if (fontError) console.warn('[ledger] font loading failed:', fontError);
+    if (fontTimedOut) console.warn('[ledger] fonts timed out — using system faces');
+  }, [fontError, fontTimedOut]);
+
+  // Hold on the splash colour rather than a white void while we wait.
+  if (!fontsSettled) return <View style={{ flex: 1, backgroundColor: color.ink }} />;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -67,13 +104,25 @@ function RootNavigator() {
   const segments = useSegments();
   const router = useRouter();
 
+  // Startup breadcrumb — a white screen is silent otherwise.
+  useEffect(() => {
+    console.log('[ledger] auth', {
+      loading,
+      signedIn: !!session,
+      route: segments.join('/') || '(index)',
+    });
+  }, [loading, session, segments]);
+
   useEffect(() => {
     if (loading) return;
-    const onSignIn = segments[0] === 'sign-in';
+    // auth-callback is part of the signed-out tree: the emailed link lands there
+    // with no session yet, and bouncing it to sign-in would throw the tokens away
+    // before the deep-link handler could read them.
+    const onAuthRoute = segments[0] === 'sign-in' || segments[0] === 'auth-callback';
 
-    if (!session && !onSignIn) {
+    if (!session && !onAuthRoute) {
       router.replace('/sign-in');
-    } else if (session && onSignIn) {
+    } else if (session && onAuthRoute) {
       router.replace('/');
     }
   }, [session, loading, segments, router]);
@@ -93,6 +142,7 @@ function RootNavigator() {
         }}
       >
         <Stack.Screen name="sign-in" options={{ animation: 'fade' }} />
+        <Stack.Screen name="auth-callback" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
           name="add-expense"

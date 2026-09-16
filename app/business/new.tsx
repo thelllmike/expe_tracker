@@ -1,5 +1,14 @@
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -14,7 +23,9 @@ import {
   ToggleRow,
 } from '@/components';
 import type { PickerOption } from '@/components';
+import * as Crypto from 'expo-crypto';
 import { currencyOptions } from '@/lib/currencies';
+import { logoUrl, pickAndUploadLogo } from '@/lib/logo';
 import { alpha, color, gutter, radius } from '@/theme/tokens';
 import { font, text } from '@/theme/type';
 import { useBusinesses, useProfile } from '@/data/queries';
@@ -76,8 +87,41 @@ export default function NewBusinessScreen() {
   const [sheet, setSheet] = useState<Sheet>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Branding — everything here only shows up on the generated documents.
+  const [logoPath, setLogoPath] = useState<string | null>(existing?.logo_path ?? null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [brandColor, setBrandColor] = useState(existing?.brand_color ?? '');
+  const [bankName, setBankName] = useState(existing?.bank_name ?? '');
+  const [bankAccountName, setBankAccountName] = useState(existing?.bank_account_name ?? '');
+  const [bankAccountNumber, setBankAccountNumber] = useState(existing?.bank_account_number ?? '');
+  const [bankBranch, setBankBranch] = useState(existing?.bank_branch ?? '');
+  const [footerContact, setFooterContact] = useState(existing?.footer_contact ?? '');
+
+  // A logo can be chosen before the business exists, so it needs a key of its
+  // own; the same key is reused if the user picks again.
+  const logoKey = useRef(existing?.id ?? Crypto.randomUUID());
+
+  const brandColorValid = brandColor.trim() === '' || /^#[0-9a-fA-F]{6}$/.test(brandColor.trim());
+
+  const onPickLogo = async () => {
+    setError(null);
+    setLogoBusy(true);
+    try {
+      const picked = await pickAndUploadLogo(logoKey.current, logoPath);
+      if (picked) {
+        setLogoPath(picked.path);
+        setLogoPreview(picked.uri);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not upload the logo.');
+    } finally {
+      setLogoBusy(false);
+    }
+  };
+
   const tax = TAX_PRESETS[taxIndex];
-  const canSave = name.trim().length > 0 && !saveBusiness.isPending;
+  const canSave = name.trim().length > 0 && brandColorValid && !saveBusiness.isPending;
 
   const onSave = async () => {
     if (!canSave) return;
@@ -94,6 +138,13 @@ export default function NewBusinessScreen() {
         taxRate: tax.rate,
         vatNumber: vatNumber.trim() || null,
         isDefault,
+        logoPath,
+        brandColor: brandColor.trim() || null,
+        bankName: bankName.trim() || null,
+        bankAccountName: bankAccountName.trim() || null,
+        bankAccountNumber: bankAccountNumber.trim() || null,
+        bankBranch: bankBranch.trim() || null,
+        footerContact: footerContact.trim() || null,
         // A brand-new account gets a starter category list, otherwise the
         // expense form would have nothing to pick from.
         seedCategories: isFirst,
@@ -178,6 +229,124 @@ export default function NewBusinessScreen() {
           ) : null}
         </ListCard>
 
+        <SectionLabel style={styles.label}>DOCUMENT BRANDING</SectionLabel>
+        <ListCard>
+          <View style={styles.logoRow}>
+            <View style={styles.logoFrame}>
+              {logoPreview || logoUrl(logoPath) ? (
+                <Image
+                  source={{ uri: logoPreview ?? logoUrl(logoPath)! }}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
+              ) : (
+                <Text style={styles.logoEmpty}>No logo</Text>
+              )}
+            </View>
+            <View style={styles.logoCopy}>
+              <Text style={text.fieldLabel}>Logo</Text>
+              <Text style={styles.logoHint}>
+                Square PNG or JPEG. Shown at the top of invoices and quotations.
+              </Text>
+              <Pressable onPress={onPickLogo} disabled={logoBusy} accessibilityRole="button">
+                <Text style={styles.logoAction}>
+                  {logoBusy ? 'Uploading…' : logoPath ? 'Replace logo' : 'Choose logo'}
+                </Text>
+              </Pressable>
+            </View>
+            {logoBusy ? <ActivityIndicator color={color.ink} /> : null}
+          </View>
+
+          <View style={styles.inputRow}>
+            <Text style={text.fieldLabel}>Accent colour</Text>
+            <View style={styles.swatchRow}>
+              <TextInput
+                value={brandColor}
+                onChangeText={setBrandColor}
+                placeholder="#6D4AFF — optional"
+                placeholderTextColor={color.muted2}
+                style={[styles.input, styles.swatchInput]}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                accessibilityLabel="Accent colour hex"
+              />
+              <View
+                style={[
+                  styles.swatch,
+                  brandColorValid && brandColor.trim()
+                    ? { backgroundColor: brandColor.trim() }
+                    : styles.swatchEmpty,
+                ]}
+              />
+            </View>
+            {!brandColorValid ? (
+              <Text style={styles.error}>Use a six-digit hex colour, like #6D4AFF.</Text>
+            ) : null}
+          </View>
+
+          <View style={styles.inputRow}>
+            <Text style={text.fieldLabel}>Footer contact</Text>
+            <TextInput
+              value={footerContact}
+              onChangeText={setFooterContact}
+              placeholder={'Address, phone\nemail'}
+              placeholderTextColor={color.muted2}
+              style={[styles.input, styles.multiline]}
+              multiline
+              accessibilityLabel="Footer contact line"
+            />
+          </View>
+        </ListCard>
+
+        <SectionLabel style={styles.label}>PAY TO</SectionLabel>
+        <ListCard>
+          <View style={styles.inputRow}>
+            <Text style={text.fieldLabel}>Bank</Text>
+            <TextInput
+              value={bankName}
+              onChangeText={setBankName}
+              placeholder="Sampath Bank"
+              placeholderTextColor={color.muted2}
+              style={styles.input}
+              accessibilityLabel="Bank name"
+            />
+          </View>
+          <View style={styles.inputRow}>
+            <Text style={text.fieldLabel}>Account name</Text>
+            <TextInput
+              value={bankAccountName}
+              onChangeText={setBankAccountName}
+              placeholder="Account holder"
+              placeholderTextColor={color.muted2}
+              style={styles.input}
+              accessibilityLabel="Account name"
+            />
+          </View>
+          <View style={styles.inputRow}>
+            <Text style={text.fieldLabel}>Account number</Text>
+            <TextInput
+              value={bankAccountNumber}
+              onChangeText={setBankAccountNumber}
+              placeholder="114457603923"
+              placeholderTextColor={color.muted2}
+              style={styles.input}
+              keyboardType="number-pad"
+              accessibilityLabel="Account number"
+            />
+          </View>
+          <View style={styles.inputRow}>
+            <Text style={text.fieldLabel}>Branch</Text>
+            <TextInput
+              value={bankBranch}
+              onChangeText={setBankBranch}
+              placeholder="Maradana"
+              placeholderTextColor={color.muted2}
+              style={styles.input}
+              accessibilityLabel="Branch"
+            />
+          </View>
+        </ListCard>
+
         <SectionLabel style={styles.label}>DEFAULTS</SectionLabel>
         <ListCard>
           <ToggleRow
@@ -243,6 +412,32 @@ export default function NewBusinessScreen() {
 }
 
 const styles = StyleSheet.create({
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  logoFrame: {
+    width: 58,
+    height: 58,
+    borderRadius: radius.card,
+    backgroundColor: alpha.onInk08,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  logoImage: { width: '100%', height: '100%' },
+  logoEmpty: { fontFamily: font.sans, fontSize: 10.5, color: color.muted2 },
+  logoCopy: { flex: 1, gap: 3 },
+  logoHint: { fontFamily: font.sans, fontSize: 12, lineHeight: 17, color: color.muted },
+  logoAction: { marginTop: 4, fontFamily: font.sansSemi, fontSize: 13.5, color: color.ink },
+  swatchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  swatchInput: { flex: 1 },
+  swatch: { width: 26, height: 26, borderRadius: 8 },
+  swatchEmpty: { borderWidth: 1, borderColor: color.line, backgroundColor: 'transparent' },
+  multiline: { minHeight: 44, textAlignVertical: 'top' },
   root: { flex: 1, backgroundColor: color.paper },
   content: { paddingBottom: 24 },
   preview: { alignItems: 'center', paddingVertical: 26, gap: 12 },

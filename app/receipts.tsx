@@ -14,6 +14,7 @@ import {
   SectionLabel,
 } from '@/components';
 import type { PickerOption } from '@/components';
+import { detectImageFormat, readLocalFile } from '@/lib/files';
 import { supabase } from '@/lib/supabase';
 import { alpha, color, gutter, radius } from '@/theme/tokens';
 import { font, text } from '@/theme/type';
@@ -74,12 +75,16 @@ export default function ReceiptsScreen() {
       const userId = userData.user?.id;
       if (!userId) throw new Error('Not signed in.');
 
-      const path = `${userId}/${Date.now()}.jpg`;
-      const bytes = await (await fetch(asset.uri)).arrayBuffer();
+      // Read natively: fetch() on a local URI hands back "File not found" as a
+      // 200 and uploads those 14 bytes as the image.
+      const bytes = await readLocalFile(asset.uri);
+      const format = detectImageFormat(bytes);
+      if (!format) throw new Error('That capture was not a readable image.');
 
+      const path = `${userId}/${Date.now()}.${format.extension}`;
       const { error: uploadError } = await supabase.storage
         .from('receipts')
-        .upload(path, bytes, { contentType: 'image/jpeg' });
+        .upload(path, bytes, { contentType: format.contentType });
       if (uploadError) throw uploadError;
 
       const { error: insertError } = await supabase.from('receipts').insert({

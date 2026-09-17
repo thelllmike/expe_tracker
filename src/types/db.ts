@@ -139,6 +139,14 @@ export interface Tables {
     recurrence: string | null;
   } & Timestamps;
 
+  income_sources: {
+    id: string;
+    owner_id: string;
+    business_id: string | null;
+    name: string;
+    position: number;
+  };
+
   income: {
     id: string;
     owner_id: string;
@@ -152,6 +160,7 @@ export interface Tables {
     tax_minor: number;
     received_on: string;
     memo: string | null;
+    source_id: string | null;
   } & Timestamps;
 
   invoices: {
@@ -277,6 +286,10 @@ export type InvoiceView = Tables['invoices'] & {
 // ------------------------------------------------------------------ RPC shapes
 
 export type HomeSummary = {
+  period?: PLPeriod;
+  /** Inclusive start and exclusive end of the period, as ISO dates. */
+  from?: string;
+  to?: string;
   month: string;
   revenue_minor: number;
   expense_minor: number;
@@ -301,8 +314,14 @@ export type HomeBusiness = {
   expense_count: number;
 };
 
+export type PLPeriod = 'day' | 'week' | 'month' | 'year' | 'all';
+
 export type PLSummary = {
   business_id: string;
+  period: PLPeriod;
+  /** Inclusive start and exclusive end of the period, as ISO dates. */
+  from: string;
+  to: string;
   month: string;
   revenue_minor: number;
   expense_minor: number;
@@ -313,6 +332,8 @@ export type PLSummary = {
   cash_hand_minor: number;
   cash_bank_minor: number;
   categories: { name: string; total_minor: number }[];
+  /** Revenue split by income source, the mirror of `categories`. */
+  sources: { name: string; total_minor: number }[];
 };
 
 export type TaxSummary = {
@@ -336,8 +357,14 @@ export type Database = {
     Tables: { [K in keyof Tables]: { Row: Row<K>; Insert: Insert<K>; Update: Insert<K>; Relationships: [] } };
     Views: { invoices_view: { Row: InvoiceView; Relationships: [] } };
     Functions: {
-      home_summary: { Args: { p_month?: string }; Returns: HomeSummary };
-      pl_summary: { Args: { p_business_id: string; p_month?: string }; Returns: PLSummary };
+      home_summary: {
+        Args: { p_month?: string; p_period?: PLPeriod };
+        Returns: HomeSummary;
+      };
+      pl_summary: {
+        Args: { p_business_id: string; p_month?: string; p_period?: PLPeriod };
+        Returns: PLSummary;
+      };
       tax_summary: { Args: { p_as_of?: string }; Returns: TaxSummary };
       net_trend: {
         Args: { p_business_id?: string | null; p_months?: number; p_to?: string };
@@ -370,6 +397,8 @@ export type Database = {
 
 export type Business = Tables['businesses'];
 export type Category = Tables['categories'];
+export type IncomeSource = Tables['income_sources'];
+export type Income = Tables['income'];
 export type Contact = Tables['contacts'];
 export type Account = Tables['accounts'];
 export type Expense = Tables['expenses'];

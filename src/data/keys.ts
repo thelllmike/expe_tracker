@@ -3,16 +3,21 @@ export const qk = {
   profile: ['profile'] as const,
   businesses: ['businesses'] as const,
   categories: ['categories'] as const,
+  incomeSources: ['income-sources'] as const,
   accounts: ['accounts'] as const,
   contacts: (kind?: string) => ['contacts', kind ?? 'all'] as const,
 
   homeSummary: (month: string) => ['home-summary', month] as const,
-  plSummary: (businessId: string, month: string) => ['pl-summary', businessId, month] as const,
+  plSummary: (businessId: string, anchor: string, period: string) =>
+    ['pl-summary', businessId, anchor, period] as const,
   taxSummary: ['tax-summary'] as const,
   netTrend: (businessId: string | null, months: number) =>
     ['net-trend', businessId ?? 'all', months] as const,
 
   expenses: (filters: unknown) => ['expenses', filters] as const,
+  income: (filters: unknown) => ['income', filters] as const,
+  expense: (id: string) => ['expense', id] as const,
+  incomeEntry: (id: string) => ['income-entry', id] as const,
   vendorHistory: (vendorId: string) => ['vendor-history', vendorId] as const,
 
   invoices: ['invoices'] as const,

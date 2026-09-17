@@ -94,6 +94,163 @@ export function useCreateExpense() {
   });
 }
 
+/** Edit an entry that already exists. Same shape as creating one, plus the id. */
+export function useUpdateExpense() {
+  const qc = useQueryClient();
+  const invalidateLedger = useLedgerInvalidation();
+
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: NewExpense }) => {
+      const fx = input.fxRate ?? 1;
+      const { data, error } = await supabase
+        .from('expenses')
+        .update({
+          business_id: input.businessId,
+          category_id: input.categoryId ?? null,
+          vendor_id: input.vendorId ?? null,
+          account_id: input.accountId ?? null,
+          amount_minor: input.amountMinor,
+          currency: input.currency,
+          fx_rate: fx,
+          base_minor: Math.round(input.amountMinor * fx),
+          tax_minor: input.taxMinor ?? 0,
+          tax_recoverable: input.taxRecoverable ?? false,
+          spent_on: toISODate(input.spentOn),
+          memo: input.memo ?? null,
+          is_recurring: input.isRecurring ?? false,
+          recurrence: input.recurrence ?? null,
+        })
+        .eq('id', id)
+        .select()
+        .single();
+      check({ error });
+      return data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['expenses'] });
+      invalidateLedger();
+    },
+  });
+}
+
+export function useDeleteExpense() {
+  const qc = useQueryClient();
+  const invalidateLedger = useLedgerInvalidation();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      check(await supabase.from('expenses').delete().eq('id', id));
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['expenses'] });
+      invalidateLedger();
+    },
+  });
+}
+
+// -------------------------------------------------------------------- income
+
+export type NewIncome = {
+  businessId: string;
+  amountMinor: number;
+  currency: string;
+  sourceId?: string | null;
+  clientId?: string | null;
+  receivedOn: Date;
+  taxMinor?: number;
+  memo?: string | null;
+  /** Rate from the income currency into the profile's base currency. */
+  fxRate?: number;
+};
+
+/**
+ * Money in, recorded by hand. Marking an invoice paid and confirming a bank
+ * transaction write to the same table, so a payment entered twice counts twice —
+ * this is for takings that never became an invoice.
+ */
+export function useCreateIncome() {
+  const qc = useQueryClient();
+  const invalidateLedger = useLedgerInvalidation();
+
+  return useMutation({
+    mutationFn: async (input: NewIncome) => {
+      const owner_id = await requireUserId();
+      const fx = input.fxRate ?? 1;
+
+      const { data, error } = await supabase
+        .from('income')
+        .insert({
+          owner_id,
+          business_id: input.businessId,
+          source_id: input.sourceId ?? null,
+          client_id: input.clientId ?? null,
+          amount_minor: input.amountMinor,
+          currency: input.currency,
+          fx_rate: fx,
+          base_minor: Math.round(input.amountMinor * fx),
+          tax_minor: input.taxMinor ?? 0,
+          received_on: toISODate(input.receivedOn),
+          memo: input.memo ?? null,
+        })
+        .select()
+        .single();
+      check({ error });
+      return data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['income'] });
+      invalidateLedger();
+    },
+  });
+}
+
+export function useUpdateIncome() {
+  const qc = useQueryClient();
+  const invalidateLedger = useLedgerInvalidation();
+
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: NewIncome }) => {
+      const fx = input.fxRate ?? 1;
+      const { data, error } = await supabase
+        .from('income')
+        .update({
+          business_id: input.businessId,
+          source_id: input.sourceId ?? null,
+          client_id: input.clientId ?? null,
+          amount_minor: input.amountMinor,
+          currency: input.currency,
+          fx_rate: fx,
+          base_minor: Math.round(input.amountMinor * fx),
+          tax_minor: input.taxMinor ?? 0,
+          received_on: toISODate(input.receivedOn),
+          memo: input.memo ?? null,
+        })
+        .eq('id', id)
+        .select()
+        .single();
+      check({ error });
+      return data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['income'] });
+      invalidateLedger();
+    },
+  });
+}
+
+export function useDeleteIncome() {
+  const qc = useQueryClient();
+  const invalidateLedger = useLedgerInvalidation();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      check(await supabase.from('income').delete().eq('id', id));
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['income'] });
+      invalidateLedger();
+    },
+  });
+}
+
 // ------------------------------------------------------------------ invoices
 
 export type InvoiceDraft = {
@@ -591,6 +748,15 @@ const STARTER_CATEGORIES = [
   'Other',
 ];
 
+/** The revenue-side equivalent, seeded alongside the categories. */
+const STARTER_INCOME_SOURCES = [
+  'Sales',
+  'Services',
+  'Invoice payment',
+  'Interest',
+  'Other',
+];
+
 export function useSaveBusiness() {
   const qc = useQueryClient();
   const invalidateLedger = useLedgerInvalidation();
@@ -644,6 +810,18 @@ export function useSaveBusiness() {
             ),
           );
         }
+
+        const { data: existingSources } = await supabase
+          .from('income_sources')
+          .select('id')
+          .limit(1);
+        if (!existingSources?.length) {
+          check(
+            await supabase.from('income_sources').insert(
+              STARTER_INCOME_SOURCES.map((name, position) => ({ owner_id, name, position })),
+            ),
+          );
+        }
       }
 
       return data;
@@ -651,6 +829,7 @@ export function useSaveBusiness() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.businesses });
       void qc.invalidateQueries({ queryKey: qk.categories });
+      void qc.invalidateQueries({ queryKey: qk.incomeSources });
       invalidateLedger();
     },
   });
@@ -732,6 +911,23 @@ export function useCreateAccount() {
       return data;
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.accounts }),
+  });
+}
+
+export function useCreateIncomeSource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => {
+      const owner_id = await requireUserId();
+      const { data, error } = await supabase
+        .from('income_sources')
+        .insert({ owner_id, name, position: 99 })
+        .select()
+        .single();
+      check({ error });
+      return data;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.incomeSources }),
   });
 }
 

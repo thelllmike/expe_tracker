@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toISODate, startOfMonth } from '@/lib/format';
 import { qk } from './keys';
@@ -13,9 +13,12 @@ import type {
   Expense,
   ExportRecord,
   HomeSummary,
+  Income,
+  IncomeSource,
   InvoiceItem,
   InvoiceView,
   NetTrendRow,
+  PLPeriod,
   PLSummary,
   Profile,
   Quotation,
@@ -67,6 +70,14 @@ export function useCategories() {
   });
 }
 
+export function useIncomeSources() {
+  return useQuery({
+    queryKey: qk.incomeSources,
+    queryFn: async (): Promise<IncomeSource[]> =>
+      unwrap(await supabase.from('income_sources').select('*').order('position')),
+  });
+}
+
 export function useAccounts() {
   return useQuery({
     queryKey: qk.accounts,
@@ -88,23 +99,96 @@ export function useContacts(kind?: ContactKind) {
 
 // ------------------------------------------------------------------ dashboards
 
-export function useHomeSummary(month = thisMonth()) {
+export function useHomeSummary(month = thisMonth(), period: PLPeriod = 'month') {
   return useQuery({
-    queryKey: qk.homeSummary(month),
+    queryKey: qk.homeSummary(`${month}:${period}`),
     queryFn: async (): Promise<HomeSummary> =>
-      unwrap(await supabase.rpc('home_summary', { p_month: month })) as HomeSummary,
+      unwrap(
+        await supabase.rpc('home_summary', { p_month: month, p_period: period }),
+      ) as HomeSummary,
   });
 }
 
-export function usePLSummary(businessId: string | undefined, month = thisMonth()) {
+/**
+ * `anchor` is any date inside the period; the function truncates it. Passing
+ * today with 'week' therefore returns the week that contains today.
+ */
+export function usePLSummary(
+  businessId: string | undefined,
+  anchor = thisMonth(),
+  period: PLPeriod = 'month',
+) {
   return useQuery({
-    queryKey: qk.plSummary(businessId ?? '', month),
+    queryKey: qk.plSummary(businessId ?? '', anchor, period),
     enabled: Boolean(businessId),
     queryFn: async (): Promise<PLSummary> =>
       unwrap(
-        await supabase.rpc('pl_summary', { p_business_id: businessId!, p_month: month }),
+        await supabase.rpc('pl_summary', {
+          p_business_id: businessId!,
+          p_month: anchor,
+          p_period: period,
+        }),
       ) as PLSummary,
   });
+}
+
+/**
+ * The same figures for several businesses at once, for the consolidated view.
+ * There is no server-side rollup: with a handful of businesses, one RPC each is
+ * cheaper than another migration, and each result stays individually cached.
+ */
+export function usePLSummaries(
+  businessIds: string[],
+  anchor = thisMonth(),
+  period: PLPeriod = 'month',
+) {
+  return useQueries({
+    queries: businessIds.map((id) => ({
+      queryKey: qk.plSummary(id, anchor, period),
+      queryFn: async (): Promise<PLSummary> =>
+        unwrap(
+          await supabase.rpc('pl_summary', {
+            p_business_id: id,
+            p_month: anchor,
+            p_period: period,
+          }),
+        ) as PLSummary,
+    })),
+  });
+}
+
+/** Adds up per-business summaries into one, merging the two breakdowns by name. */
+export function combinePLSummaries(parts: PLSummary[]): PLSummary | null {
+  if (!parts.length) return null;
+
+  const merge = (lists: { name: string; total_minor: number }[][]) => {
+    const totals = new Map<string, number>();
+    for (const list of lists) {
+      for (const row of list ?? []) {
+        totals.set(row.name, (totals.get(row.name) ?? 0) + row.total_minor);
+      }
+    }
+    return [...totals.entries()]
+      .map(([name, total_minor]) => ({ name, total_minor }))
+      .sort((a, b) => b.total_minor - a.total_minor);
+  };
+
+  const sum = (pick: (p: PLSummary) => number) => parts.reduce((t, p) => t + (pick(p) || 0), 0);
+
+  return {
+    ...parts[0],
+    business_id: 'all',
+    revenue_minor: sum((p) => p.revenue_minor),
+    expense_minor: sum((p) => p.expense_minor),
+    net_minor: sum((p) => p.net_minor),
+    tax_collected_minor: sum((p) => p.tax_collected_minor),
+    tax_recoverable_minor: sum((p) => p.tax_recoverable_minor),
+    tax_payable_minor: sum((p) => p.tax_payable_minor),
+    cash_hand_minor: sum((p) => p.cash_hand_minor),
+    cash_bank_minor: sum((p) => p.cash_bank_minor),
+    categories: merge(parts.map((p) => p.categories)),
+    sources: merge(parts.map((p) => p.sources)),
+  };
 }
 
 export function useTaxSummary() {
@@ -166,6 +250,68 @@ export function useExpenses(filters: ExpenseFilters = {}) {
 
       return unwrap(await q) as unknown as ExpenseRow[];
     },
+  });
+}
+
+// -------------------------------------------------------------------- income
+
+export type IncomeFilters = {
+  businessId?: string | null;
+  sourceId?: string | null;
+  month?: string;
+};
+
+export type IncomeRow = Income & {
+  business: Pick<Business, 'id' | 'name' | 'short_name' | 'accent_index'> | null;
+  source: Pick<IncomeSource, 'id' | 'name'> | null;
+  client: Pick<Contact, 'id' | 'name'> | null;
+};
+
+/** The revenue-side twin of useExpenses, over the same month window. */
+export function useIncome(filters: IncomeFilters = {}) {
+  const month = filters.month ?? thisMonth();
+  return useQuery({
+    queryKey: qk.income({ ...filters, month }),
+    queryFn: async (): Promise<IncomeRow[]> => {
+      const from = new Date(month);
+      const to = new Date(from.getFullYear(), from.getMonth() + 1, 1);
+
+      let q = supabase
+        .from('income')
+        .select(
+          '*, business:businesses(id,name,short_name,accent_index),' +
+            ' source:income_sources(id,name), client:contacts(id,name)',
+        )
+        .gte('received_on', month)
+        .lt('received_on', toISODate(to))
+        .order('received_on', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (filters.businessId) q = q.eq('business_id', filters.businessId);
+      if (filters.sourceId) q = q.eq('source_id', filters.sourceId);
+
+      return unwrap(await q) as unknown as IncomeRow[];
+    },
+  });
+}
+
+/** One expense, for the edit screen. */
+export function useExpense(id: string | undefined) {
+  return useQuery({
+    queryKey: qk.expense(id ?? ''),
+    enabled: Boolean(id),
+    queryFn: async (): Promise<Expense> =>
+      unwrap(await supabase.from('expenses').select('*').eq('id', id!).single()) as Expense,
+  });
+}
+
+/** One income entry, for the edit screen. */
+export function useIncomeEntry(id: string | undefined) {
+  return useQuery({
+    queryKey: qk.incomeEntry(id ?? ''),
+    enabled: Boolean(id),
+    queryFn: async (): Promise<Income> =>
+      unwrap(await supabase.from('income').select('*').eq('id', id!).single()) as Income,
   });
 }
 

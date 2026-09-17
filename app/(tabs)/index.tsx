@@ -1,5 +1,5 @@
-import React from 'react';
-import { RefreshControl, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   AccentBar,
@@ -17,7 +17,7 @@ import {
   Screen,
   SectionLabel,
 } from '@/components';
-import { businessAccents, color, gutter } from '@/theme/tokens';
+import { alpha, businessAccents, color, gutter, radius } from '@/theme/tokens';
 import { font, text } from '@/theme/type';
 import {
   delta,
@@ -27,7 +27,13 @@ import {
   margin,
 } from '@/lib/format';
 import { useHomeSummary, useProfile } from '@/data/queries';
-import type { HomeBusiness } from '@/types/db';
+import type { HomeBusiness, PLPeriod } from '@/types/db';
+
+const PERIODS: { value: PLPeriod; label: string }[] = [
+  { value: 'month', label: 'Month' },
+  { value: 'year', label: 'Year' },
+  { value: 'all', label: 'All time' },
+];
 
 const KIND_LABEL: Record<string, string> = {
   retail: 'Retail',
@@ -41,7 +47,8 @@ const KIND_LABEL: Record<string, string> = {
 export default function HomeScreen() {
   const router = useRouter();
   const profile = useProfile();
-  const summary = useHomeSummary();
+  const [period, setPeriod] = useState<PLPeriod>('month');
+  const summary = useHomeSummary(undefined, period);
 
   const data = summary.data;
   const base = profile.data?.base_currency ?? 'USD';
@@ -64,7 +71,11 @@ export default function HomeScreen() {
         <View>
           <Text style={text.microLabel}>ALL BUSINESSES</Text>
           <Text style={[text.monthTitle, styles.month]}>
-            {formatMonthYear(data?.month ?? new Date())}
+            {period === 'all'
+              ? 'All time'
+              : period === 'year'
+                ? String(new Date().getFullYear())
+                : formatMonthYear(data?.month ?? new Date())}
           </Text>
         </View>
         <Avatar
@@ -72,6 +83,26 @@ export default function HomeScreen() {
           background={color.ink}
           tint={color.paper}
         />
+      </View>
+
+      <View style={styles.periodBar}>
+        <View style={styles.segment}>
+          {PERIODS.map((option) => (
+            <Pressable
+              key={option.value}
+              onPress={() => setPeriod(option.value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: period === option.value }}
+              style={[styles.segmentItem, period === option.value && styles.segmentItemActive]}
+            >
+              <Text
+                style={[styles.segmentLabel, period === option.value && styles.segmentLabelActive]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       <InkPanel style={styles.hero}>
@@ -181,6 +212,23 @@ function BusinessCard({
 }
 
 const styles = StyleSheet.create({
+  periodBar: { marginTop: 14, paddingHorizontal: gutter.screen },
+  segment: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: radius.pill,
+    backgroundColor: alpha.divider,
+  },
+  segmentItem: {
+    flex: 1,
+    height: 34,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentItemActive: { backgroundColor: color.card },
+  segmentLabel: { fontFamily: font.sansSemi, fontSize: 13.5, color: color.muted },
+  segmentLabelActive: { color: color.ink },
   header: {
     paddingHorizontal: gutter.screen,
     flexDirection: 'row',

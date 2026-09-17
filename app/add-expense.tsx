@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -7,7 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Button,
@@ -20,6 +21,7 @@ import {
   Toggle,
 } from '@/components';
 import type { PickerOption } from '@/components';
+import type { Expense, Income } from '@/types/db';
 import { alpha, color, gutter, radius } from '@/theme/tokens';
 import { font, text } from '@/theme/type';
 import { formatMoney, formatRelativeDay } from '@/lib/format';
@@ -28,6 +30,9 @@ import {
   useBusinesses,
   useCategories,
   useContacts,
+  useExpense,
+  useIncomeEntry,
+  useIncomeSources,
   useVendorHistory,
 } from '@/data/queries';
 import {
@@ -35,34 +40,105 @@ import {
   useCreateCategory,
   useCreateContact,
   useCreateExpense,
+  useCreateIncome,
+  useCreateIncomeSource,
+  useDeleteExpense,
+  useDeleteIncome,
+  useUpdateExpense,
+  useUpdateIncome,
 } from '@/data/mutations';
 
-type Field = 'category' | 'vendor' | 'date' | 'account' | null;
+type Field = 'category' | 'vendor' | 'date' | 'account' | 'source' | 'client' | null;
+type Kind = 'expense' | 'income';
 
 const DATE_CHOICES = [0, 1, 2, 3, 7];
 
-/** Screen 02 — two-tap expense entry. */
-export default function AddExpenseScreen() {
+/**
+ * Screen 02 — two-tap entry for money out and money in.
+ *
+ * The route is still /add-expense: it is what the tab bar's centre button
+ * pushes, and renaming it would break that for no gain.
+ */
+/**
+ * Loads the row being edited, if any, and only then mounts the form — so every
+ * field can initialise from it directly instead of being pushed values by an
+ * effect after the first render.
+ */
+export default function AddEntryScreen() {
+  const params = useLocalSearchParams<{ id?: string; kind?: string }>();
+  const editingId = params.id;
+  const editingIncome = params.kind === 'income';
+
+  const expenseQuery = useExpense(editingId && !editingIncome ? editingId : undefined);
+  const incomeQuery = useIncomeEntry(editingId && editingIncome ? editingId : undefined);
+
+  const expenseRow = editingIncome ? undefined : expenseQuery.data;
+  const incomeRow = editingIncome ? incomeQuery.data : undefined;
+  const loaded = !editingId || Boolean(expenseRow ?? incomeRow);
+
+  if (!loaded) return <View style={styles.root} />;
+
+  return (
+    <EntryForm
+      key={editingId ?? 'new'}
+      editingId={editingId}
+      expenseRow={expenseRow}
+      incomeRow={incomeRow}
+    />
+  );
+}
+
+function EntryForm({
+  editingId,
+  expenseRow,
+  incomeRow,
+}: {
+  editingId?: string;
+  expenseRow?: Expense;
+  incomeRow?: Income;
+}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const editingIncome = Boolean(incomeRow);
+  const row = expenseRow ?? incomeRow;
 
   const businesses = useBusinesses();
   const categories = useCategories();
   const vendors = useContacts('vendor');
+  const clients = useContacts('client');
   const accounts = useAccounts();
+  const sources = useIncomeSources();
   const createExpense = useCreateExpense();
+  const createIncome = useCreateIncome();
+  const createSource = useCreateIncomeSource();
+  const updateExpense = useUpdateExpense();
+  const updateIncome = useUpdateIncome();
+  const deleteExpense = useDeleteExpense();
+  const deleteIncome = useDeleteIncome();
+
   const createCategory = useCreateCategory();
   const createContact = useCreateContact();
   const createAccount = useCreateAccount();
 
-  const [amount, setAmount] = useState('');
-  const [businessId, setBusinessId] = useState<string | null>(null);
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [vendorId, setVendorId] = useState<string | null>(null);
-  const [accountId, setAccountId] = useState<string | null>(null);
+  const [kind, setKind] = useState<Kind>(editingIncome ? 'income' : 'expense');
+  const [amount, setAmount] = useState(row ? (row.amount_minor / 100).toString() : '');
+  const [businessId, setBusinessId] = useState<string | null>(row?.business_id ?? null);
+  const [sourceId, setSourceId] = useState<string | null>(incomeRow?.source_id ?? null);
+  const [clientId, setClientId] = useState<string | null>(incomeRow?.client_id ?? null);
+  const [categoryId, setCategoryId] = useState<string | null>(expenseRow?.category_id ?? null);
+  const [vendorId, setVendorId] = useState<string | null>(expenseRow?.vendor_id ?? null);
+  const [accountId, setAccountId] = useState<string | null>(expenseRow?.account_id ?? null);
   const [daysAgo, setDaysAgo] = useState(0);
-  const [taxRecoverable, setTaxRecoverable] = useState(true);
-  const [recurring, setRecurring] = useState(false);
+  /** Set when editing: the row's own date, which the day picker then overrides. */
+  const [editedDate, setEditedDate] = useState<Date | null>(
+    row
+      ? new Date(`${incomeRow ? incomeRow.received_on : expenseRow!.spent_on}T00:00:00`)
+      : null,
+  );
+  const [taxRecoverable, setTaxRecoverable] = useState(
+    incomeRow ? (incomeRow.tax_minor ?? 0) > 0 : (expenseRow?.tax_recoverable ?? true),
+  );
+  const [recurring, setRecurring] = useState<boolean>(expenseRow?.is_recurring ?? false);
   const [openField, setOpenField] = useState<Field>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,45 +151,120 @@ export default function AddExpenseScreen() {
   const activeBusinessId = businessId ?? business?.id ?? null;
   const currency = business?.currency ?? 'USD';
 
+  const income = kind === 'income';
   const vendor = vendors.data?.find((v) => v.id === vendorId) ?? null;
+  const client = clients.data?.find((c) => c.id === clientId) ?? null;
+  const source = sources.data?.find((x) => x.id === sourceId) ?? null;
   const category = categories.data?.find((c) => c.id === categoryId) ?? null;
   const account = accounts.data?.find((a) => a.id === accountId) ?? null;
   const history = useVendorHistory(vendorId);
 
   const spentOn = useMemo(() => {
+    if (editedDate) return editedDate;
     const d = new Date();
     d.setDate(d.getDate() - daysAgo);
     return d;
-  }, [daysAgo]);
+  }, [daysAgo, editedDate]);
 
   // The keypad writes a raw digit string; parse it as major units.
   const amountMinor = Math.round((Number.parseFloat(amount) || 0) * 100);
   const taxRate = business?.tax_rate ?? 0;
   const taxMinor = taxRecoverable ? Math.round((amountMinor * taxRate) / (100 + taxRate)) : 0;
-  const canSave = amountMinor > 0 && Boolean(activeBusinessId) && !createExpense.isPending;
+  const pending = income
+    ? createIncome.isPending || updateIncome.isPending
+    : createExpense.isPending || updateExpense.isPending;
+  const canSave = amountMinor > 0 && Boolean(activeBusinessId) && !pending;
 
   const [whole, decimals] = splitAmount(amount);
+
+  const onDelete = () => {
+    if (!editingId) return;
+    Alert.alert(
+      income ? 'Delete this income?' : 'Delete this expense?',
+      'This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (income) await deleteIncome.mutateAsync(editingId);
+              else await deleteExpense.mutateAsync(editingId);
+              router.back();
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Could not delete the entry.');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const onSave = async () => {
     if (!canSave || !activeBusinessId) return;
     setError(null);
     try {
-      await createExpense.mutateAsync({
-        businessId: activeBusinessId,
-        amountMinor,
-        currency,
-        categoryId,
-        vendorId,
-        accountId,
-        spentOn,
-        taxMinor,
-        taxRecoverable,
-        isRecurring: recurring,
-        recurrence: recurring ? 'monthly' : null,
-      });
+      if (income && editingId) {
+        await updateIncome.mutateAsync({
+          id: editingId,
+          input: {
+            businessId: activeBusinessId,
+            amountMinor,
+            currency,
+            sourceId,
+            clientId,
+            receivedOn: spentOn,
+            taxMinor,
+          },
+        });
+      } else if (!income && editingId) {
+        await updateExpense.mutateAsync({
+          id: editingId,
+          input: {
+            businessId: activeBusinessId,
+            amountMinor,
+            currency,
+            categoryId,
+            vendorId,
+            accountId,
+            spentOn,
+            taxMinor,
+            taxRecoverable,
+            isRecurring: recurring,
+            recurrence: recurring ? 'monthly' : null,
+          },
+        });
+      } else if (income) {
+        await createIncome.mutateAsync({
+          businessId: activeBusinessId,
+          amountMinor,
+          currency,
+          sourceId,
+          clientId,
+          receivedOn: spentOn,
+          taxMinor,
+        });
+      } else {
+        await createExpense.mutateAsync({
+          businessId: activeBusinessId,
+          amountMinor,
+          currency,
+          categoryId,
+          vendorId,
+          accountId,
+          spentOn,
+          taxMinor,
+          taxRecoverable,
+          isRecurring: recurring,
+          recurrence: recurring ? 'monthly' : null,
+        });
+      }
       router.back();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save the expense.');
+      setError(
+        e instanceof Error ? e.message : `Could not save the ${income ? 'income' : 'expense'}.`,
+      );
     }
   };
 
@@ -122,7 +273,15 @@ export default function AddExpenseScreen() {
       <View style={{ paddingTop: insets.top + 8 }}>
         <NavBar
           left="Cancel"
-          title="New expense"
+          title={
+            editingId
+              ? income
+                ? 'Edit income'
+                : 'Edit expense'
+              : income
+                ? 'New income'
+                : 'New expense'
+          }
           right="Save"
           onLeft={() => router.back()}
           onRight={onSave}
@@ -135,6 +294,27 @@ export default function AddExpenseScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {editingId ? null : (
+        <View style={styles.segment}>
+          {(['expense', 'income'] as Kind[]).map((k) => (
+            <Pressable
+              key={k}
+              onPress={() => {
+                setKind(k);
+                setError(null);
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: kind === k }}
+              style={[styles.segmentItem, kind === k && styles.segmentItemActive]}
+            >
+              <Text style={[styles.segmentLabel, kind === k && styles.segmentLabelActive]}>
+                {k === 'expense' ? 'Expense' : 'Income'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        )}
+
         <Pressable style={styles.amountBlock} onPress={() => amountRef.current?.focus()}>
           <Text style={text.microLabel}>AMOUNT</Text>
           <View style={styles.amountRow}>
@@ -150,8 +330,8 @@ export default function AddExpenseScreen() {
             keyboardType="decimal-pad"
             inputMode="decimal"
             style={styles.hiddenInput}
-            accessibilityLabel="Expense amount"
-            autoFocus
+            accessibilityLabel={income ? 'Income amount' : 'Expense amount'}
+            autoFocus={!editingId}
           />
         </Pressable>
 
@@ -168,43 +348,65 @@ export default function AddExpenseScreen() {
         </View>
 
         <ListCard style={styles.fields}>
-          <FieldRow
-            label="Category"
-            value={category?.name ?? 'Choose'}
-            onPress={() => setOpenField('category')}
-          />
-          <FieldRow
-            label="Vendor"
-            value={vendor?.name ?? 'Choose'}
-            onPress={() => setOpenField('vendor')}
-          />
+          {income ? (
+            <>
+              <FieldRow
+                label="Source"
+                value={source?.name ?? 'Choose'}
+                onPress={() => setOpenField('source')}
+              />
+              <FieldRow
+                label="Client"
+                value={client?.name ?? 'Optional'}
+                onPress={() => setOpenField('client')}
+              />
+            </>
+          ) : (
+            <>
+              <FieldRow
+                label="Category"
+                value={category?.name ?? 'Choose'}
+                onPress={() => setOpenField('category')}
+              />
+              <FieldRow
+                label="Vendor"
+                value={vendor?.name ?? 'Choose'}
+                onPress={() => setOpenField('vendor')}
+              />
+            </>
+          )}
           <FieldRow
             label="Date"
             value={formatRelativeDay(spentOn)}
             onPress={() => setOpenField('date')}
           />
-          <FieldRow
-            label="Paid from"
-            value={account ? accountLabel(account.kind, account.name, account.mask) : 'Choose'}
-            onPress={() => setOpenField('account')}
-          />
+          {income ? null : (
+            <FieldRow
+              label="Paid from"
+              value={account ? accountLabel(account.kind, account.name, account.mask) : 'Choose'}
+              onPress={() => setOpenField('account')}
+            />
+          )}
           <View style={styles.taxRow}>
             <Text style={text.fieldLabel}>{business?.tax_label ?? 'Tax / VAT'}</Text>
             <View style={styles.taxValue}>
               <Text style={text.fieldValue}>
                 {taxRecoverable && taxMinor > 0
-                  ? `Recoverable · ${formatMoney(taxMinor, currency, { decimals: true })}`
-                  : 'Not recoverable'}
+                  ? `${income ? 'Collected' : 'Recoverable'} · ${formatMoney(taxMinor, currency, { decimals: true })}`
+                  : income
+                    ? 'No tax'
+                    : 'Not recoverable'}
               </Text>
               <Toggle
                 value={taxRecoverable}
                 onChange={setTaxRecoverable}
-                accessibilityLabel="Tax recoverable"
+                accessibilityLabel={income ? 'Tax collected' : 'Tax recoverable'}
               />
             </View>
           </View>
         </ListCard>
 
+        {income ? null : (
         <View style={styles.tiles}>
           <Pressable
             style={({ pressed }) => [styles.tile, styles.tileDashed, pressed && styles.pressed]}
@@ -231,8 +433,9 @@ export default function AddExpenseScreen() {
             </Text>
           </Pressable>
         </View>
+        )}
 
-        {vendor && (history.data?.length ?? 0) > 0 ? (
+        {!income && vendor && (history.data?.length ?? 0) > 0 ? (
           <Text style={styles.hint}>
             {`Last ${history.data!.length} at ${firstWord(vendor.name)}: ` +
               history.data!.map((h) => formatMoney(h.amount_minor, h.currency)).join(' · ')}
@@ -240,14 +443,28 @@ export default function AddExpenseScreen() {
         ) : null}
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {editingId ? (
+          <Pressable
+            onPress={onDelete}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.deleteRow, pressed && styles.pressed]}
+          >
+            <Text style={styles.deleteLabel}>
+              {income ? 'Delete this income' : 'Delete this expense'}
+            </Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
 
       <DockedBar>
         <Button
-          label="Save expense"
+          label={
+            editingId ? 'Save changes' : income ? 'Save income' : 'Save expense'
+          }
           onPress={onSave}
           disabled={!canSave}
-          loading={createExpense.isPending}
+          loading={pending}
         />
       </DockedBar>
 
@@ -289,6 +506,43 @@ export default function AddExpenseScreen() {
         }}
       />
       <PickerSheet
+        visible={openField === 'source'}
+        title="Source"
+        options={(sources.data ?? []).map<PickerOption<string>>((x) => ({
+          value: x.id,
+          label: x.name,
+        }))}
+        selected={sourceId}
+        onSelect={setSourceId}
+        onClose={() => setOpenField(null)}
+        createLabel="New source"
+        onCreate={async (name) => {
+          const created = await createSource.mutateAsync(name);
+          if (created) setSourceId(created.id);
+        }}
+      />
+      <PickerSheet
+        visible={openField === 'client'}
+        title="Client"
+        options={(clients.data ?? []).map<PickerOption<string>>((c) => ({
+          value: c.id,
+          label: c.name,
+        }))}
+        selected={clientId}
+        onSelect={setClientId}
+        onClose={() => setOpenField(null)}
+        createLabel="New client"
+        onCreate={async (name) => {
+          const created = await createContact.mutateAsync({
+            name,
+            kind: 'client',
+            businessId: activeBusinessId,
+            currency,
+          });
+          if (created) setClientId(created.id);
+        }}
+      />
+      <PickerSheet
         visible={openField === 'date'}
         title="Date"
         options={DATE_CHOICES.map<PickerOption<number>>((days) => {
@@ -297,7 +551,11 @@ export default function AddExpenseScreen() {
           return { value: days, label: formatRelativeDay(d) };
         })}
         selected={daysAgo}
-        onSelect={setDaysAgo}
+        onSelect={(days) => {
+          setDaysAgo(days);
+          // Choosing a day overrides the date an edited row arrived with.
+          setEditedDate(null);
+        }}
         onClose={() => setOpenField(null)}
       />
       <PickerSheet
@@ -348,6 +606,28 @@ function currencySymbolFor(code: string): string {
 }
 
 const styles = StyleSheet.create({
+  // Expense / Income switch. Sits above the amount so the choice is made before
+  // the figure is typed, which is the order the two-tap flow depends on.
+  segment: {
+    flexDirection: 'row',
+    marginTop: 14,
+    marginHorizontal: 22,
+    padding: 4,
+    borderRadius: radius.pill,
+    backgroundColor: alpha.divider,
+  },
+  segmentItem: {
+    flex: 1,
+    height: 38,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentItemActive: { backgroundColor: color.card },
+  segmentLabel: { fontFamily: font.sansSemi, fontSize: 14, color: color.muted },
+  segmentLabelActive: { color: color.ink },
+  deleteRow: { marginTop: 26, paddingVertical: 14, alignItems: 'center' },
+  deleteLabel: { fontFamily: font.sansSemi, fontSize: 14.5, color: color.red },
   root: { flex: 1, backgroundColor: color.paper },
   content: { paddingBottom: 24 },
 

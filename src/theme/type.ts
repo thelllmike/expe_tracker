@@ -1,5 +1,5 @@
 import { TextStyle } from 'react-native';
-import { color } from './tokens';
+import { color, themed } from './tokens';
 
 /**
  * Font families as registered by expo-font in app/_layout.tsx.
@@ -17,7 +17,7 @@ export const font = {
  * Named text styles, each traced to the screen it comes from.
  * Sizes are the export's literal px values (React Native treats them as dp).
  */
-export const text = {
+export const text = themed(() => ({
   /** Serif headline number, e.g. "$31,848" on the home hero. */
   heroNumber: { fontFamily: font.serif, fontSize: 44, lineHeight: 44 } as TextStyle,
   /** Screen title, e.g. "Expenses", "Invoices", "People". */
@@ -27,7 +27,7 @@ export const text = {
   /** P&L title. */
   plTitle: { fontFamily: font.serif, fontSize: 29, color: color.ink } as TextStyle,
   /** Sign-in headline. */
-  authTitle: { fontFamily: font.serif, fontSize: 44, lineHeight: 47.5, color: color.paper } as TextStyle,
+  authTitle: { fontFamily: font.serif, fontSize: 44, lineHeight: 47.5, color: color.onInk } as TextStyle,
 
   /** ALL-CAPS micro label: 11px / 600 / 0.16em, muted. */
   microLabel: {
@@ -95,7 +95,7 @@ export const text = {
   /** Inline green link, e.g. "Compare", "Review", "+ Add". */
   link: { fontFamily: font.sansSemi, fontSize: 12.5, color: color.green } as TextStyle,
   /** Primary CTA label. */
-  cta: { fontFamily: font.sansSemi, fontSize: 15.5, color: color.card } as TextStyle,
+  cta: { fontFamily: font.sansSemi, fontSize: 15.5, color: color.onAccent } as TextStyle,
   /** Secondary CTA label. */
   ctaSecondary: { fontFamily: font.sansSemi, fontSize: 15, color: color.ink } as TextStyle,
 
@@ -116,4 +116,4 @@ export const text = {
 
   /** Body copy inside insight cards, with the design's 1.5 line-height. */
   body: { fontFamily: font.sans, fontSize: 13, lineHeight: 19.5, color: color.muted } as TextStyle,
-} as const;
+}));

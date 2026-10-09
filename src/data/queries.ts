@@ -4,6 +4,7 @@ import { toISODate, startOfMonth } from '@/lib/format';
 import { qk } from './keys';
 import type {
   Account,
+  AdminUser,
   AppNotification,
   BankTransaction,
   Business,
@@ -519,5 +520,28 @@ export function useNextDocumentNumber(
           p_kind: kind,
         }),
       ) as string,
+  });
+}
+
+// ---------------------------------------------------------------------- admin
+
+/**
+ * Whether the signed-in account is on the admin list. Keyed by user so one
+ * account's answer is never shown to the next person to sign in on the device.
+ */
+export function useIsAdmin(userId: string | null | undefined) {
+  return useQuery({
+    queryKey: qk.isAdmin(userId ?? ''),
+    enabled: Boolean(userId),
+    queryFn: async (): Promise<boolean> => unwrap(await supabase.rpc('is_admin', {})) as boolean,
+  });
+}
+
+/** Every account, newest first. The database refuses anyone who is not an admin. */
+export function useAdminUsers() {
+  return useQuery({
+    queryKey: qk.adminUsers,
+    queryFn: async (): Promise<AdminUser[]> =>
+      unwrap(await supabase.rpc('admin_list_users', {})) as AdminUser[],
   });
 }

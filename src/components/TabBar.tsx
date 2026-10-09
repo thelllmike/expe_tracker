@@ -1,8 +1,9 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { alpha, color, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { text } from '@/theme/type';
 
 /**
@@ -87,7 +88,7 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   bar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -110,10 +111,10 @@ const styles = StyleSheet.create({
     marginBottom: -4,
   },
   plus: {
-    color: color.card,
+    color: color.onAccent,
     fontSize: 26,
     lineHeight: 30,
     fontFamily: 'InstrumentSans_400Regular',
   },
   pressed: { opacity: 0.85 },
-});
+}));

@@ -1,18 +1,19 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { color, radius } from '@/theme/tokens';
+import { Text, View } from 'react-native';
+import { color, radius, themed } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { text } from '@/theme/type';
 import type { InvoiceDisplayStatus, QuoteStatus } from '@/types/db';
 
 export type BadgeTone = 'red' | 'blue' | 'green' | 'amber' | 'neutral';
 
-const TONES: Record<BadgeTone, { bg: string; fg: string }> = {
+const TONES: Record<BadgeTone, { bg: string; fg: string }> = themed(() => ({
   red: { bg: color.redSoft, fg: color.red },
   blue: { bg: color.blueSoft, fg: color.blueDark },
   green: { bg: color.greenSoft, fg: color.greenDark },
   amber: { bg: color.amberSoft, fg: color.amberText },
   neutral: { bg: color.line, fg: color.muted },
-};
+}));
 
 /**
  * 10.5px / 700 / 0.08em status pill. The label is rendered verbatim: the design
@@ -91,11 +92,11 @@ export function quotationBadge(quote: {
   }
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   badge: {
     paddingVertical: 4,
     paddingHorizontal: 9,
     borderRadius: radius.pill,
     alignSelf: 'flex-start',
   },
-});
+}));

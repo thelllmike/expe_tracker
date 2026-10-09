@@ -29,4 +29,7 @@ export const qk = {
   bankTransactions: ['bank-transactions'] as const,
   notifications: ['notifications'] as const,
   exports: ['exports'] as const,
+
+  isAdmin: (userId: string) => ['is-admin', userId] as const,
+  adminUsers: ['admin-users'] as const,
 } as const;

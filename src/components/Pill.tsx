@@ -1,6 +1,7 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { alpha, color, gutter, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { text } from '@/theme/type';
 
 /**
@@ -77,7 +78,7 @@ export function PillRow({ children }: { children: React.ReactNode }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   pill: { borderRadius: radius.pill, justifyContent: 'center' },
   pillSmall: { paddingVertical: 8, paddingHorizontal: 13 },
   pillLarge: { paddingVertical: 9, paddingHorizontal: 15 },
@@ -86,4 +87,4 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
   softPill: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: radius.pill },
   softPillText: { fontFamily: 'InstrumentSans_600SemiBold', fontSize: 11.5 },
-});
+}));

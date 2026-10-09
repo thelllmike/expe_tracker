@@ -4,7 +4,6 @@ import {
   Image,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -27,6 +26,7 @@ import * as Crypto from 'expo-crypto';
 import { currencyOptions } from '@/lib/currencies';
 import { logoUrl, pickAndUploadLogo } from '@/lib/logo';
 import { alpha, color, gutter, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { useBusinesses, useProfile } from '@/data/queries';
 import { useSaveBusiness } from '@/data/mutations';
@@ -411,7 +411,7 @@ export default function NewBusinessScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -471,4 +471,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: color.red,
   },
-});
+}));

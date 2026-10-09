@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import { generateDocument, shareDocument } from '@/lib/documents';
 import { BusinessTile, Button, NavBar } from '@/components';
 import { alpha, color, gutter, radius, shadow } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { formatDay, formatMoney } from '@/lib/format';
 import { useInvoice } from '@/data/queries';
@@ -257,7 +258,7 @@ export default function InvoicePreviewScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // The preview sits on a darker ground so the white page reads as paper.
   root: { flex: 1, backgroundColor: color.previewBackdrop },
   scroll: { paddingTop: 16, paddingHorizontal: gutter.preview, paddingBottom: 16 },
@@ -350,4 +351,4 @@ const styles = StyleSheet.create({
   resend: { width: 56 },
   flexOne: { flex: 1 },
   flexShrink: { flexShrink: 1 },
-});
+}));

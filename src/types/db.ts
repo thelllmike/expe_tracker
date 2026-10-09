@@ -347,6 +347,18 @@ export type TaxSummary = {
 
 export type NetTrendRow = { business_id: string; month: string; net_minor: number };
 
+/** One row of `admin_list_users()` — every account, as an admin sees it. */
+export type AdminUser = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  created_at: string;
+  last_sign_in_at: string | null;
+  email_confirmed_at: string | null;
+  business_count: number;
+  is_admin: boolean;
+};
+
 // ------------------------------------------------------- supabase-js generic
 
 type Row<T extends keyof Tables> = Tables[T];
@@ -375,6 +387,8 @@ export type Database = {
         Args: { p_vendor_id: string; p_limit?: number };
         Returns: { amount_minor: number; currency: string; spent_on: string }[];
       };
+      is_admin: { Args: Record<string, never>; Returns: boolean };
+      admin_list_users: { Args: Record<string, never>; Returns: AdminUser[] };
     };
     Enums: {
       business_kind: BusinessKind;

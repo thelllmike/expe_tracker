@@ -1,7 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { color } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font } from '@/theme/type';
 import { roundedTopRect, scaleToMax } from './geometry';
 import { useChartWidth } from './useChartWidth';
@@ -77,8 +78,8 @@ export function GroupedBarChart({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   labels: { marginTop: 7, flexDirection: 'row' },
   label: { flex: 1, textAlign: 'center', fontFamily: font.sans, fontSize: 10, color: color.muted },
   labelActive: { fontFamily: font.sansSemi, color: color.ink },
-});
+}));

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 import {
   Avatar,
   Card,
@@ -11,6 +11,7 @@ import {
   SectionLabel,
 } from '@/components';
 import { alpha, color, gutter, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { daysBetween, formatDay, formatMoney } from '@/lib/format';
 import { useContacts, useExpenses, useInvoices, useProfile } from '@/data/queries';
@@ -198,7 +199,7 @@ export default function ClientsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   searchWrap: { marginTop: 14, paddingHorizontal: gutter.screen },
   search: {
     height: 40,
@@ -213,4 +214,4 @@ const styles = StyleSheet.create({
   },
   tabs: { marginTop: 14, paddingHorizontal: gutter.screen, flexDirection: 'row', gap: 7 },
   section: { marginTop: 20, marginBottom: 8 },
-});
+}));

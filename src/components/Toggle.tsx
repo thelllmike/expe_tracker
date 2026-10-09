@@ -1,6 +1,7 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { alpha, color, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { text } from '@/theme/type';
 
 /**
@@ -53,7 +54,7 @@ export function ToggleRow({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   track: {
     width: 44,
     height: 26,
@@ -75,4 +76,4 @@ const styles = StyleSheet.create({
   },
   // The toggle rows use ink text, not the muted field label.
   rowLabel: { color: color.ink, flexShrink: 1 },
-});
+}));

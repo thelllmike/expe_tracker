@@ -1,6 +1,7 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { color, gutter } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { text } from '@/theme/type';
 
 /**
@@ -79,7 +80,7 @@ function NavAction({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   bar: {
     paddingHorizontal: gutter.screen,
     flexDirection: 'row',
@@ -91,4 +92,4 @@ const styles = StyleSheet.create({
   title: { color: color.ink, flexShrink: 0 },
   pressed: { opacity: 0.6 },
   disabled: { opacity: 0.4 },
-});
+}));

@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   Card,
@@ -11,19 +11,20 @@ import {
   ScreenHeader,
   SectionLabel,
 } from '@/components';
-import { alpha, color, gutter } from '@/theme/tokens';
+import { alpha, color, gutter, themed } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { formatDay } from '@/lib/format';
 import { useNotifications } from '@/data/queries';
 import { useMarkAllNotificationsRead } from '@/data/mutations';
 import type { AlertSeverity, AppNotification } from '@/types/db';
 
-const SEVERITY: Record<AlertSeverity, { dot: string; border: string }> = {
+const SEVERITY: Record<AlertSeverity, { dot: string; border: string }> = themed(() => ({
   critical: { dot: color.red, border: alpha.redBorder },
   positive: { dot: color.green, border: alpha.greenBorder },
   warning: { dot: color.amber, border: alpha.amberBorder },
   info: { dot: color.muted2, border: alpha.border },
-};
+}));
 
 /** Screen 17 — what needs you, then everything else. */
 export default function NotificationsScreen() {
@@ -136,7 +137,7 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   section: { marginTop: 18, marginBottom: 8 },
   list: { paddingHorizontal: gutter.screen, gap: 8 },
   alertCard: { flexDirection: 'row', gap: 12, paddingVertical: 15, paddingHorizontal: 16 },
@@ -155,4 +156,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   footerLabel: { fontFamily: font.sans, fontSize: 13, color: color.muted },
-});
+}));

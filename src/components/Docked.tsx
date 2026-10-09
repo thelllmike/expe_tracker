@@ -1,7 +1,8 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { alpha, color, gutter } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 
 /**
  * White footer pinned to the bottom with a hairline above it — the "Save expense"
@@ -17,7 +18,7 @@ export function DockedBar({ children }: { children: React.ReactNode }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   bar: {
     paddingTop: 14,
     paddingHorizontal: gutter.screen,
@@ -27,4 +28,4 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
-});
+}));

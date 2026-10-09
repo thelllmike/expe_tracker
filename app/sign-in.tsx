@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { alpha, color, gutter, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { NEEDS_CONFIRMATION, useAuth } from '@/data/auth';
 
@@ -24,7 +25,7 @@ const STEPS = [
 const MIN_PASSWORD = 6;
 
 type Mode = 'signin' | 'signup';
-type Status = 'idle' | 'busy' | 'google' | 'linkSent';
+type Status = 'idle' | 'busy' | 'google' | 'linkSent' | 'resetting';
 
 /**
  * Screen 14. Email and password against Supabase, with Google alongside and the
@@ -39,6 +40,7 @@ export default function SignInScreen() {
     signUpWithPassword,
     resendConfirmation,
     sendMagicLink,
+    sendPasswordReset,
     signInWithGoogle,
   } = useAuth();
 
@@ -53,6 +55,8 @@ export default function SignInScreen() {
   /** Set once the confirmation mail is out — the form is replaced by the notice. */
   const [awaitingConfirm, setAwaitingConfirm] = useState(false);
   const [resent, setResent] = useState(false);
+  /** Outcome of "Forgot password?", shown right under the link that caused it. */
+  const [resetNote, setResetNote] = useState<{ ok: boolean; text: string } | null>(null);
 
   const signup = mode === 'signup';
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -73,6 +77,7 @@ export default function SignInScreen() {
     setError(null);
     setNeedsConfirm(false);
     setResent(false);
+    setResetNote(null);
   };
 
   const onSubmit = async () => {
@@ -123,6 +128,31 @@ export default function SignInScreen() {
       fail(e, 'Could not send the link.');
     }
     setStatus('idle');
+  };
+
+  const onForgotPassword = async () => {
+    // The keyboard otherwise sits on top of the answer.
+    Keyboard.dismiss();
+    reset();
+    if (!emailValid) {
+      setResetNote({ ok: false, text: 'Type your email address above first, then tap Forgot password.' });
+      return;
+    }
+    setStatus('resetting');
+    try {
+      await sendPasswordReset(email);
+      setResetNote({
+        ok: true,
+        text: `Reset link sent to ${email.trim()}. Open the email on this phone and tap the link — check spam if it is not in your inbox.`,
+      });
+    } catch (e) {
+      setResetNote({
+        ok: false,
+        text: e instanceof Error ? e.message : 'Could not send the reset email.',
+      });
+    } finally {
+      setStatus('idle');
+    }
   };
 
   const onGoogle = async () => {
@@ -253,6 +283,27 @@ export default function SignInScreen() {
               <Text style={styles.hint}>
                 Passwords need at least {MIN_PASSWORD} characters.
               </Text>
+            ) : null}
+
+            {!signup ? (
+              <Pressable
+                onPress={onForgotPassword}
+                accessibilityRole="button"
+                disabled={status === 'busy' || status === 'resetting'}
+                hitSlop={8}
+                style={styles.forgot}
+              >
+                <Text style={styles.forgotLabel}>
+                  {status === 'resetting' ? 'Sending reset link…' : 'Forgot password?'}
+                </Text>
+              </Pressable>
+            ) : null}
+            {!signup && resetNote ? (
+              <View style={[styles.resetNote, !resetNote.ok && styles.resetNoteError]}>
+                <Text style={[styles.resetNoteText, !resetNote.ok && styles.resetNoteTextError]}>
+                  {resetNote.text}
+                </Text>
+              </View>
             ) : null}
 
             <PrimaryButton
@@ -446,8 +497,8 @@ function OutlineButton({
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: color.ink },
+const styles = themedStyles(() => ({
+  root: { flex: 1, backgroundColor: color.night },
   content: { paddingHorizontal: gutter.auth },
 
   logo: {
@@ -458,7 +509,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoLetter: { fontFamily: font.serif, fontSize: 22, color: color.card },
+  logoLetter: { fontFamily: font.serif, fontSize: 22, color: color.onAccent },
 
   title: { marginTop: 28 },
   lede: {
@@ -493,7 +544,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontFamily: font.serif,
     fontSize: 24,
-    color: color.paper,
+    color: color.onInk,
     padding: 0,
   },
 
@@ -520,9 +571,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   ctaPrimary: { backgroundColor: color.green },
-  ctaPrimaryLabel: { fontFamily: font.sansSemi, fontSize: 15.5, color: color.card },
+  ctaPrimaryLabel: { fontFamily: font.sansSemi, fontSize: 15.5, color: color.onAccent },
   ctaOutline: { borderWidth: 1, borderColor: alpha.onInk20 },
-  ctaOutlineLabel: { fontFamily: font.sansSemi, fontSize: 15, color: color.paper },
+  ctaOutlineLabel: { fontFamily: font.sansSemi, fontSize: 15, color: color.onInk },
   ctaDisabled: { opacity: 0.45 },
   pressed: { opacity: 0.8 },
 
@@ -534,6 +585,19 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     color: color.green,
   },
+  forgot: { marginTop: 12, alignSelf: 'flex-end' },
+  forgotLabel: { fontFamily: font.sansSemi, fontSize: 13, color: color.green },
+  resetNote: {
+    marginTop: 12,
+    padding: 14,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: color.green,
+    backgroundColor: alpha.onInk08,
+  },
+  resetNoteError: { borderColor: '#FF9C8F' },
+  resetNoteText: { fontFamily: font.sans, fontSize: 13.5, lineHeight: 20, color: color.onInk },
+  resetNoteTextError: { color: '#FF9C8F' },
   linkMuted: {
     marginTop: 16,
     fontFamily: font.sans,
@@ -558,8 +622,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepBulletActive: { backgroundColor: color.green },
-  stepNumber: { fontFamily: font.sansBold, fontSize: 11.5, color: color.card },
-  stepLabel: { fontFamily: font.sans, fontSize: 14, color: color.paper },
+  stepNumber: { fontFamily: font.sansBold, fontSize: 11.5, color: color.onAccent },
+  stepLabel: { fontFamily: font.sans, fontSize: 14, color: color.onInk },
   stepLabelMuted: { color: alpha.onInk72 },
 
   terms: {
@@ -569,4 +633,4 @@ const styles = StyleSheet.create({
     lineHeight: 17.25,
     color: alpha.onInk50,
   },
-});
+}));

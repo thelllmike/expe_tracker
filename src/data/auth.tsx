@@ -15,6 +15,16 @@ type AuthState = {
   signUpWithPassword: (a: Credentials & { fullName: string }) => Promise<'session' | 'confirm'>;
   signInWithPassword: (a: Credentials) => Promise<void>;
   resendConfirmation: (email: string) => Promise<void>;
+  /** Emails a link that opens the reset-password screen with a recovery session. */
+  sendPasswordReset: (email: string) => Promise<void>;
+  /** Sets a new password on the signed-in (or recovery) session. */
+  updatePassword: (password: string) => Promise<void>;
+  /**
+   * Set while a password-reset link is being handled: the root layout holds the
+   * app on reset-password until the screen calls `endRecovery`.
+   */
+  recovery: { error: string | null } | null;
+  endRecovery: () => void;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -29,6 +39,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recovery, setRecovery] = useState<{ error: string | null } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -56,25 +67,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * them here and hand them to supabase-js.
    */
   const consumeAuthUrl = useCallback(async (url: string) => {
-    const fragment = url.split('#')[1];
-    if (!fragment) return false;
-    const params = new URLSearchParams(fragment);
+    const [beforeFragment, fragment = ''] = url.split('#');
+    const [path, query = ''] = beforeFragment.split('?');
+    // Tokens arrive in the fragment; a dead link reports its error in the query
+    // string, the fragment, or both, depending on the Supabase version.
+    const params = new URLSearchParams([query, fragment].filter(Boolean).join('&'));
+    const isRecovery = path.includes('reset-password') || params.get('type') === 'recovery';
+
+    const linkError = params.get('error_description') ?? params.get('error');
+    if (linkError) {
+      if (isRecovery) setRecovery({ error: linkError.replace(/\+/g, ' ') });
+      return false;
+    }
+
     const access_token = params.get('access_token');
     const refresh_token = params.get('refresh_token');
-    if (!access_token || !refresh_token) return false;
+    if (!access_token || !refresh_token) {
+      if (isRecovery) {
+        setRecovery({ error: 'That link did not carry a sign-in. Ask for a fresh one.' });
+      }
+      return false;
+    }
 
+    if (isRecovery) setRecovery({ error: null });
     const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-    if (error) throw error;
+    if (error) {
+      if (isRecovery) setRecovery({ error: error.message });
+      throw error;
+    }
     return true;
   }, []);
 
+  const endRecovery = useCallback(() => setRecovery(null), []);
+
   useEffect(() => {
-    const sub = Linking.addEventListener('url', ({ url }) => {
-      void consumeAuthUrl(url);
-    });
-    // A cold start from a magic link arrives as the initial URL, not an event.
+    // Failures are surfaced through `recovery.error` or the callback screen's
+    // own timeout; nothing useful can be done with the rejection here.
+    const consume = (url: string) => void consumeAuthUrl(url).catch(() => undefined);
+    const sub = Linking.addEventListener('url', ({ url }) => consume(url));
+    // A cold start from an emailed link arrives as the initial URL, not an event.
     void Linking.getInitialURL().then((url) => {
-      if (url) void consumeAuthUrl(url);
+      if (url) consume(url);
     });
     return () => sub.remove();
   }, [consumeAuthUrl]);
@@ -116,6 +149,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   }, []);
 
+  const sendPasswordReset = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      // Not /auth-callback: that route bounces home the moment a session exists,
+      // and the recovery link has to land somewhere a new password can be typed.
+      redirectTo: Linking.createURL('/reset-password'),
+    });
+    if (error) throw error;
+  }, []);
+
+  const updatePassword = useCallback(async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+  }, []);
+
   const sendMagicLink = useCallback(async (email: string) => {
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
@@ -152,6 +199,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signUpWithPassword,
       signInWithPassword,
       resendConfirmation,
+      sendPasswordReset,
+      updatePassword,
+      recovery,
+      endRecovery,
       signInWithGoogle,
       signOut,
     }),
@@ -162,6 +213,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signUpWithPassword,
       signInWithPassword,
       resendConfirmation,
+      sendPasswordReset,
+      updatePassword,
+      recovery,
+      endRecovery,
       signInWithGoogle,
       signOut,
     ],

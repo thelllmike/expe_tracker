@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   Badge,
@@ -11,6 +11,7 @@ import {
   invoiceBadge,
 } from '@/components';
 import { alpha, color, gutter } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { formatMoney } from '@/lib/format';
 import { useInvoices, useProfile } from '@/data/queries';
@@ -138,7 +139,7 @@ function InvoiceCard({ invoice, onPress }: { invoice: InvoiceRow; onPress: () =>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   filters: { marginTop: 16 },
   list: { marginTop: 18, paddingHorizontal: gutter.screen, gap: 8 },
   card: { paddingVertical: 15, paddingHorizontal: 16 },
@@ -154,4 +155,4 @@ const styles = StyleSheet.create({
   },
   amount: { fontFamily: font.serif, fontSize: 20, color: color.ink },
   meta: { flexShrink: 1, fontFamily: font.sans, fontSize: 11.5, color: color.muted },
-});
+}));

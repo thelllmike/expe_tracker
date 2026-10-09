@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Alert, RefreshControl, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   Badge,
@@ -12,6 +12,7 @@ import {
   quotationBadge,
 } from '@/components';
 import { alpha, color, gutter } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { formatMoney } from '@/lib/format';
 import { shareDocument } from '@/lib/documents';
@@ -163,7 +164,7 @@ export default function QuotationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   shareRow: { marginTop: 12, flexDirection: 'row' },
   filters: { marginTop: 16 },
   list: { marginTop: 18, paddingHorizontal: gutter.screen, gap: 8 },
@@ -190,4 +191,4 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   convertLabel: { fontFamily: font.sans, fontSize: 12, color: color.muted },
-});
+}));

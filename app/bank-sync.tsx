@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Alert, RefreshControl, Text, View } from 'react-native';
 import {
   BadgeTile,
   Card,
@@ -12,13 +12,14 @@ import {
   SectionLabel,
   SoftPill,
 } from '@/components';
-import { alpha, color, gutter } from '@/theme/tokens';
+import { alpha, color, gutter, themed } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { formatAgo, formatMoney } from '@/lib/format';
 import { useAccounts, useBankTransactions } from '@/data/queries';
 import { useConfirmTransaction } from '@/data/mutations';
 
-const BADGE_TINTS = [color.ink, color.blue, color.amber];
+const BADGE_TINTS: readonly string[] = themed(() => [color.ink, color.blue, color.amber]);
 
 /** Screen 15 — linked accounts and the review queue. */
 export default function BankSyncScreen() {
@@ -215,7 +216,7 @@ function tagTint(accent: number): string {
   return accent === 1 ? color.blueDark : accent === 2 ? color.amberText : color.greenDark;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   accountList: { marginTop: 18, paddingHorizontal: gutter.screen, gap: 8 },
   accountCard: {
     flexDirection: 'row',
@@ -246,4 +247,4 @@ const styles = StyleSheet.create({
   txnAmountIn: { color: color.greenDark },
   txnTags: { marginTop: 7, flexDirection: 'row', alignItems: 'center', gap: 6 },
   spacer: { flex: 1 },
-});
+}));

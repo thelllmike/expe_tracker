@@ -1,6 +1,7 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View, StyleProp, ViewStyle } from 'react-native';
+import { Pressable, Text, View, StyleProp, ViewStyle } from 'react-native';
 import { alpha, color, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { text } from '@/theme/type';
 
 /** The vertical accent stripe that marks which business a row belongs to. */
@@ -135,7 +136,7 @@ export function Chevron({ tint = color.muted2 }: { tint?: string }) {
   return <Text style={[styles.chevron, { color: tint }]}>›</Text>;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     paddingVertical: 13,
     paddingHorizontal: 16,
@@ -158,4 +159,4 @@ const styles = StyleSheet.create({
   fieldValue: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   chevron: { fontSize: 18, lineHeight: 20, marginLeft: 2 },
   pressed: { opacity: 0.6, backgroundColor: alpha.divider },
-});
+}));

@@ -1,7 +1,8 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { alpha, color } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font } from '@/theme/type';
 import { roundedTopRect, scaleToMax } from './geometry';
 import { useChartWidth } from './useChartWidth';
@@ -95,9 +96,9 @@ export function BarChart({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   labels: { marginTop: 6, flexDirection: 'row' },
   label: { textAlign: 'center', fontFamily: font.sans, fontSize: 10, color: color.muted },
   labelFlex: { flex: 1 },
   labelActive: { fontFamily: font.sansSemi, color: color.ink },
-});
+}));

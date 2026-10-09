@@ -25,6 +25,8 @@ app/                      expo-router routes — one file per screen
   receipts.tsx            16 · receipt inbox
   notifications.tsx       17 · notifications
   business/new.tsx        create / edit a business (not in the original 17)
+  reset-password.tsx      forgot / change password (not in the original 17)
+  admin.tsx               admin dashboard — every user (not in the original 17)
 src/theme/                design tokens + type scale, transcribed from the export
 src/components/           the local component library (no UI kit)
 src/charts/               bar / grouped bar / share bar, drawn with react-native-svg
@@ -88,6 +90,31 @@ Two things it deliberately does not touch:
   `storage.objects` and `storage.buckets` from SQL (`storage.protect_delete`), so
   the reset drops only the storage *policies* and lets the rebuild re-declare the
   buckets. Clear uploaded receipts and PDFs from **Dashboard → Storage**.
+
+### Forgot password
+
+**Forgot password?** on the sign-in screen emails a recovery link that opens
+`reset-password` in the app, where a new password is set. The link comes back as
+`ledger://reset-password`, so that URL (or `ledger://**`) has to be in
+**Authentication → URL Configuration → Redirect URLs**, alongside
+`ledger://auth-callback`. Signed-in users reach the same screen from
+**Settings → Change password**.
+
+### Admin dashboard
+
+**Settings → Users** lists every account: name, email, sign-up date, last
+sign-in, business count and whether the email is confirmed. The row only appears
+for admins, and the list is served by `admin_list_users()`, which refuses anyone
+not in `public.admins` — hiding the row is not the protection.
+
+There is deliberately no way to grant admin from the app. Run this once in the
+SQL Editor, with your own sign-in email:
+
+```sql
+insert into public.admins (user_id)
+select id from auth.users where email = 'you@example.com'
+on conflict do nothing;
+```
 
 **4. Deploy the PDF function**
 

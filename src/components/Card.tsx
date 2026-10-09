@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, View, ViewStyle, StyleProp } from 'react-native';
 import { alpha, color, radius, gutter } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 
 type CardProps = {
   children: React.ReactNode;
@@ -113,7 +114,7 @@ export function DashedCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   base: { overflow: 'hidden' },
   clip: { padding: 0 },
   padded: { padding: 16 },
@@ -131,4 +132,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

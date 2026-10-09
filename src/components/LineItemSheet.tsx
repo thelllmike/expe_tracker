@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { alpha, color, gutter, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { Button } from './Button';
 
@@ -150,7 +151,7 @@ function Field({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scrim: { flex: 1, backgroundColor: 'rgba(15,28,46,0.35)' },
   sheet: {
     backgroundColor: color.paper,
@@ -191,4 +192,4 @@ const styles = StyleSheet.create({
   total: { marginTop: 16, fontFamily: font.sansSemi, fontSize: 13.5, color: color.ink },
   actions: { marginTop: 16, flexDirection: 'row', gap: 10 },
   removeButton: { width: 120 },
-});
+}));

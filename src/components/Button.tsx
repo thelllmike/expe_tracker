@@ -1,6 +1,7 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, StyleProp, ViewStyle } from 'react-native';
-import { alpha, color, radius } from '@/theme/tokens';
+import { ActivityIndicator, Pressable, Text, StyleProp, ViewStyle } from 'react-native';
+import { alpha, color, radius, themed } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { text } from '@/theme/type';
 
 type Variant =
@@ -10,13 +11,13 @@ type Variant =
   | 'onInk'     // translucent fill for buttons sitting on an ink panel
   | 'ghost';    // text only
 
-const VARIANTS: Record<Variant, { bg: string; fg: string; border?: string }> = {
-  primary: { bg: color.green, fg: color.card },
+const VARIANTS: Record<Variant, { bg: string; fg: string; border?: string }> = themed(() => ({
+  primary: { bg: color.green, fg: color.onAccent },
   ink: { bg: color.ink, fg: color.paper },
   outline: { bg: 'transparent', fg: color.ink, border: alpha.borderHeavy },
-  onInk: { bg: alpha.onInk14, fg: color.paper },
+  onInk: { bg: alpha.onInk14, fg: color.onInk },
   ghost: { bg: 'transparent', fg: color.green },
-};
+}));
 
 export function Button({
   label,
@@ -126,7 +127,7 @@ export function LinkButton({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   base: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   grow: { flex: 1 },
   labelSm: { fontFamily: 'InstrumentSans_600SemiBold', fontSize: 13.5 },
@@ -139,4 +140,4 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   pillButtonLabel: { fontFamily: 'InstrumentSans_600SemiBold', fontSize: 11.5 },
-});
+}));

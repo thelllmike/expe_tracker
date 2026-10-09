@@ -1,6 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, View, StyleProp, ViewStyle } from 'react-native';
+import { Text, View, StyleProp, ViewStyle } from 'react-native';
 import { businessAccents, color, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { initials as toInitials } from '@/lib/format';
 
 /** Round initials chip on paper — contacts, and the user avatar on home. */
@@ -86,8 +87,8 @@ export function BadgeTile({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   center: { alignItems: 'center', justifyContent: 'center' },
   initials: { fontFamily: 'InstrumentSans_700Bold' },
   tileLetter: { fontFamily: 'InstrumentSans_700Bold', color: '#FFFFFF' },
-});
+}));

@@ -1,15 +1,16 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { alpha, color, gutter, radius } from '@/theme/tokens';
+import { Text, View } from 'react-native';
+import { alpha, color, gutter, radius, themed } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font } from '@/theme/type';
 
 export type BannerTone = 'amber' | 'green' | 'red';
 
-const TONES: Record<BannerTone, { bg: string; border: string; body: string }> = {
+const TONES: Record<BannerTone, { bg: string; border: string; body: string }> = themed(() => ({
   amber: { bg: color.amberSoft, border: alpha.amberBorderSoft, body: color.amberMuted },
   green: { bg: color.greenSoft, border: alpha.greenBorderSoft, body: color.greenDeep },
   red: { bg: color.redSoft, border: alpha.redBorder, body: color.red },
-};
+}));
 
 /**
  * Tinted strip: the overdue alert on home, the "4 receipts waiting" prompt on the
@@ -51,7 +52,7 @@ export function Banner({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   banner: {
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -66,5 +67,5 @@ const styles = StyleSheet.create({
   title: { fontFamily: font.sansSemi, fontSize: 13.5, color: color.ink },
   body: { fontFamily: font.sans, fontSize: 13, lineHeight: 19.5 },
   bodySpaced: { marginTop: 2, fontSize: 12, lineHeight: 18 },
-});
+}));
 

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   AccentBar,
@@ -21,6 +21,7 @@ import type { PickerOption } from '@/components';
 import type { PLPeriod, PLSummary } from '@/types/db';
 import { BarChart } from '@/charts';
 import { alpha, businessAccents, color, gutter, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import {
   formatDay,
@@ -386,7 +387,7 @@ export default function PLScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   periodBar: {
     marginTop: 18,
     paddingHorizontal: 22,
@@ -449,7 +450,7 @@ const styles = StyleSheet.create({
   chart: { marginTop: 12 },
   categories: { marginTop: 12, gap: 10 },
   pressed: { opacity: 0.6 },
-});
+}));
 
 /** "Today · 16 Sep" / "Week of 15 Sep" / "September 2026". */
 function periodLabel(period: PLPeriod, from: string | undefined): string {

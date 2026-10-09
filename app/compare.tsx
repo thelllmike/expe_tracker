@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Card, Screen, ScreenHeader, SectionLabel } from '@/components';
 import { GroupedBarChart, ShareBar } from '@/charts';
 import type { GroupedSeries, ShareSlice } from '@/charts';
 import { alpha, businessAccents, color, gutter, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { formatMonthShort, formatMonthYear, formatMoney, formatPercent, margin } from '@/lib/format';
 import { useHomeSummary, useNetTrend, useProfile } from '@/data/queries';
@@ -151,7 +152,7 @@ function spell(n: number): string {
   return ['zero', 'one', 'two', 'three', 'four', 'five', 'six'][n] ?? String(n);
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   table: { marginTop: 18 },
   tableHead: {
     paddingVertical: 11,
@@ -182,4 +183,4 @@ const styles = StyleSheet.create({
   noPad: { paddingHorizontal: 0 },
   chart: { marginTop: 12 },
   insight: { marginTop: 20 },
-});
+}));

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   BusinessTile,
@@ -16,14 +16,22 @@ import {
 import type { PickerOption } from '@/components';
 import { supabase } from '@/lib/supabase';
 import { color, gutter } from '@/theme/tokens';
+import { themedStyles, useTheme } from '@/theme/theme';
+import type { ThemePreference } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { currencySymbol } from '@/lib/format';
 import { currencyOptions } from '@/lib/currencies';
 import { useAuth } from '@/data/auth';
-import { useBusinesses, useProfile } from '@/data/queries';
+import { useBusinesses, useIsAdmin, useProfile } from '@/data/queries';
 import type { Profile } from '@/types/db';
 
-type Sheet = 'currency' | 'fx' | 'fy' | 'numbering' | null;
+type Sheet = 'currency' | 'fx' | 'fy' | 'numbering' | 'theme' | null;
+
+const THEME_LABEL: Record<ThemePreference, string> = {
+  system: 'Same as phone',
+  light: 'Light',
+  dark: 'Dark',
+};
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -44,6 +52,8 @@ export default function MoreScreen() {
   const { signOut } = useAuth();
   const profile = useProfile();
   const businesses = useBusinesses();
+  const isAdmin = useIsAdmin(profile.data?.id);
+  const { preference, setPreference } = useTheme();
   const [sheet, setSheet] = useState<Sheet>(null);
 
   const base = profile.data?.base_currency ?? 'USD';
@@ -109,6 +119,11 @@ export default function MoreScreen() {
       <SectionLabel style={styles.section}>GENERAL</SectionLabel>
       <ListCard>
         <FieldRow
+          label="Appearance"
+          value={THEME_LABEL[preference]}
+          onPress={() => setSheet('theme')}
+        />
+        <FieldRow
           label="Base currency"
           value={`${base} ${currencySymbol(base)}`}
           onPress={() => setSheet('currency')}
@@ -154,8 +169,26 @@ export default function MoreScreen() {
         />
       </ListCard>
 
+      {isAdmin.data ? (
+        <>
+          <SectionLabel style={styles.section}>ADMIN</SectionLabel>
+          <ListCard>
+            <NavRow
+              title="Users"
+              meta="Everyone with an account"
+              onPress={() => router.push('/admin')}
+            />
+          </ListCard>
+        </>
+      ) : null}
+
       <SectionLabel style={styles.section}>ACCOUNT</SectionLabel>
       <ListCard>
+        <NavRow
+          title="Change password"
+          meta="Set a new one for this account"
+          onPress={() => router.push('/reset-password')}
+        />
         <NavRow
           title="Sign out"
           meta={profile.data?.email ?? undefined}
@@ -168,6 +201,16 @@ export default function MoreScreen() {
         />
       </ListCard>
 
+      <PickerSheet
+        visible={sheet === 'theme'}
+        title="Appearance"
+        options={(['system', 'light', 'dark'] as const).map<PickerOption<ThemePreference>>(
+          (value) => ({ value, label: THEME_LABEL[value] }),
+        )}
+        selected={preference}
+        onSelect={setPreference}
+        onClose={() => setSheet(null)}
+      />
       <PickerSheet
         visible={sheet === 'currency'}
         title="Base currency"
@@ -210,7 +253,7 @@ export default function MoreScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   section: { marginTop: 22, marginBottom: 8 },
   businessList: { paddingHorizontal: gutter.screen, gap: 8 },
   businessCard: {
@@ -232,4 +275,4 @@ const styles = StyleSheet.create({
   },
   chevron: { fontSize: 18, color: color.muted2 },
   dashedLabel: { fontFamily: font.sansSemi, fontSize: 13.5, color: color.muted },
-});
+}));

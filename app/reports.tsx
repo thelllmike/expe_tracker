@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -17,6 +17,7 @@ import {
   SectionLabel,
 } from '@/components';
 import { gutter } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { formatDay, formatMoney } from '@/lib/format';
 import { useExpenses, useExports, useProfile, useTaxSummary } from '@/data/queries';
@@ -164,11 +165,11 @@ function csvCell(value: string | null | undefined): string {
   return /[",\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   taxPanel: { marginTop: 18, padding: 18 },
   taxFigure: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   payable: { fontFamily: font.sans, fontSize: 14, color: 'rgba(245,243,238,0.7)' },
   taxActions: { marginTop: 14, flexDirection: 'row', gap: 10 },
   section: { marginTop: 20, marginBottom: 8 },
   exportList: { paddingHorizontal: gutter.screen, gap: 8 },
-});
+}));

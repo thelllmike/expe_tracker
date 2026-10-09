@@ -1,6 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, View, StyleProp, ViewStyle } from 'react-native';
+import { Text, View, StyleProp, ViewStyle } from 'react-native';
 import { alpha, color, gutter, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 
 /** Dark surface used for the home hero, the P&L net card and the tax card. */
@@ -42,7 +43,7 @@ export function InkFigure({
   value,
   size = 44,
   delta,
-  tint = color.paper,
+  tint = color.onInk,
 }: {
   value: string;
   size?: number;
@@ -103,8 +104,8 @@ export function InkFooterText({
   );
 }
 
-const styles = StyleSheet.create({
-  panel: { backgroundColor: color.ink },
+const styles = themedStyles(() => ({
+  panel: { backgroundColor: color.inkSurface },
   hero: { borderRadius: radius.hero, padding: 20 },
   card: { borderRadius: radius.card, padding: 16 },
   inset: { marginHorizontal: gutter.screen },
@@ -120,7 +121,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontFamily: font.sansSemi,
     fontSize: 13,
-    color: color.paper,
+    color: color.onInk,
   },
   footer: {
     marginTop: 16,
@@ -131,5 +132,5 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   footerText: { fontFamily: font.sans, fontSize: 12.5, color: alpha.onInk70 },
-  footerStrong: { fontFamily: font.sansSemi, color: color.paper },
-});
+  footerStrong: { fontFamily: font.sansSemi, color: color.onInk },
+}));

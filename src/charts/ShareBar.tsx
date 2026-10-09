@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Svg, { Rect, Defs, ClipPath, Path } from 'react-native-svg';
 import { color } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font } from '@/theme/type';
 import { useChartWidth } from './useChartWidth';
 
@@ -78,10 +79,10 @@ export function ShareBar({ slices, height = 14 }: { slices: ShareSlice[]; height
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   legend: { marginTop: 10, flexDirection: 'row', gap: 14, flexWrap: 'wrap' },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   swatch: { width: 8, height: 8, borderRadius: 2 },
   legendText: { fontFamily: font.sans, fontSize: 11.5, color: color.muted },
-});
+}));
 

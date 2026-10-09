@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   AccentBar,
@@ -14,6 +14,7 @@ import {
   SectionLabel,
 } from '@/components';
 import { alpha, businessAccents, color, gutter, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { formatDayGroup, formatMoney, formatMonth, startOfMonth, toISODate } from '@/lib/format';
 import {
@@ -335,7 +336,7 @@ function cycleCategory(
   set((f) => ({ ...f, categoryId: next }));
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   sideBar: { marginTop: 16, paddingHorizontal: 22 },
   segment: {
     flexDirection: 'row',
@@ -359,4 +360,4 @@ const styles = StyleSheet.create({
   groupLabel: { marginTop: 20, marginBottom: 8 },
   empty: { marginTop: 20 },
   banner: { marginTop: 18 },
-});
+}));

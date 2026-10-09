@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -18,6 +18,7 @@ import {
 } from '@/components';
 import type { LineItem, PickerOption } from '@/components';
 import { alpha, color, gutter } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { currencySymbol, formatDay, formatMoney } from '@/lib/format';
 import { currencyOptions } from '@/lib/currencies';
@@ -334,7 +335,7 @@ export default function NewQuotationScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { flex: 1, backgroundColor: color.paper },
   content: { paddingBottom: 24 },
   card: { marginTop: 18 },
@@ -379,7 +380,7 @@ const styles = StyleSheet.create({
     color: color.red,
   },
   pressed: { opacity: 0.6 },
-});
+}));
 
 /** "1,250.50" → 125050 minor units. Anything unparseable counts as zero. */
 function toMinor(value: string): number {

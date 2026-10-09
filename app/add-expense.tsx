@@ -3,7 +3,6 @@ import {
   Alert,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -23,6 +22,7 @@ import {
 import type { PickerOption } from '@/components';
 import type { Expense, Income } from '@/types/db';
 import { alpha, color, gutter, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { formatMoney, formatRelativeDay } from '@/lib/format';
 import {
@@ -605,7 +605,7 @@ function currencySymbolFor(code: string): string {
   return ({ USD: '$', EUR: '€', GBP: '£', INR: '₹' } as Record<string, string>)[code] ?? code;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Expense / Income switch. Sits above the amount so the choice is made before
   // the figure is typed, which is the order the two-tap flow depends on.
   segment: {
@@ -684,4 +684,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   pressed: { opacity: 0.7 },
-});
+}));

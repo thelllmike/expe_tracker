@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   AccentBar,
@@ -18,6 +18,7 @@ import {
   SectionLabel,
 } from '@/components';
 import { alpha, businessAccents, color, gutter, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import {
   delta,
@@ -211,7 +212,7 @@ function BusinessCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   periodBar: { marginTop: 14, paddingHorizontal: gutter.screen },
   segment: {
     flexDirection: 'row',
@@ -248,4 +249,4 @@ const styles = StyleSheet.create({
   businessMargin: { marginTop: 2, fontFamily: font.sans, fontSize: 11.5, color: color.muted },
   alert: { marginTop: 18 },
   seedButton: { marginTop: 14 },
-});
+}));

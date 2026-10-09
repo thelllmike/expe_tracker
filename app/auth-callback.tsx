@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { alpha, color } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { useAuth } from '@/data/auth';
 
@@ -70,10 +71,10 @@ export default function AuthCallbackScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: {
     flex: 1,
-    backgroundColor: color.ink,
+    backgroundColor: color.night,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
@@ -103,6 +104,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ctaLabel: { fontFamily: font.sansSemi, fontSize: 15.5, color: color.card },
+  ctaLabel: { fontFamily: font.sansSemi, fontSize: 15.5, color: color.onAccent },
   pressed: { opacity: 0.8 },
-});
+}));

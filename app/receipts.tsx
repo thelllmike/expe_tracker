@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Image, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, RefreshControl, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {
   Banner,
@@ -17,6 +17,7 @@ import type { PickerOption } from '@/components';
 import { detectImageFormat, readLocalFile } from '@/lib/files';
 import { supabase } from '@/lib/supabase';
 import { alpha, color, gutter, radius } from '@/theme/tokens';
+import { themedStyles } from '@/theme/theme';
 import { font, text } from '@/theme/type';
 import { formatDay, formatMoney } from '@/lib/format';
 import { useBusinesses, useExpenses, useReceipts } from '@/data/queries';
@@ -274,11 +275,11 @@ function ReceiptThumb({ path }: { path: string | null }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   hero: { marginTop: 18 },
   heroRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   heroBody: { flex: 1 },
-  heroTitle: { marginTop: 5, fontFamily: font.sansSemi, fontSize: 15, color: color.paper },
+  heroTitle: { marginTop: 5, fontFamily: font.sansSemi, fontSize: 15, color: color.onInk },
   heroMeta: { marginTop: 3, fontFamily: font.sans, fontSize: 12, color: alpha.onInk66 },
   heroActions: { marginTop: 14, flexDirection: 'row', gap: 8 },
   changeButton: { width: 96 },
@@ -307,4 +308,4 @@ const styles = StyleSheet.create({
   waitingBody: { flex: 1, minWidth: 0 },
   waitingMeta: { marginTop: 2, fontFamily: font.sans, fontSize: 11.5, color: color.muted },
   banner: { marginTop: 20 },
-});
+}));

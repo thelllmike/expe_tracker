@@ -4,13 +4,33 @@
  * is not in that file it does not belong in this file.
  */
 
-export const color = {
+export type ThemeName = 'light' | 'dark';
+
+/**
+ * The light palette is the design export, value for value. The dark palette is
+ * not in the export: it keeps the same roles and flips the ground, so `ink` is
+ * always "the text colour on paper" and `paper` "the page behind it".
+ *
+ * Three roles do not flip, because the surface under them stays dark or tinted
+ * in both themes: `night` (the sign-in ground), `onInk` (text on an ink panel)
+ * and `onAccent` (text on a green or blue fill).
+ */
+const lightColor = {
   ink: '#0F1C2E',
   muted: '#5B6B7C',
   muted2: '#6E7B88',
   paper: '#F5F3EE',
   card: '#FFFFFF',
   line: '#F0EEE8',
+
+  /** Fill of the hero / ink panels. Same as `ink` in light, a raised navy in dark. */
+  inkSurface: '#0F1C2E',
+  /** Sign-in, reset and splash ground — identical in both themes. */
+  night: '#0F1C2E',
+  /** Text on `inkSurface` and `night`. */
+  onInk: '#F5F3EE',
+  /** Text on a green or blue fill. */
+  onAccent: '#FFFFFF',
 
   green: '#0FA36B',
   greenDark: '#1B6B4D',
@@ -33,10 +53,47 @@ export const color = {
 
   /** Preview screen sits on a darker ground than the rest of the app. */
   previewBackdrop: '#E4E1DA',
-} as const;
+};
+
+type Palette = { [K in keyof typeof lightColor]: string };
+
+const darkColor: Palette = {
+  ink: '#F2EFE8',
+  muted: '#9AA8B6',
+  muted2: '#8593A1',
+  paper: '#0B1422',
+  card: '#152236',
+  line: '#1E2C40',
+
+  inkSurface: '#1C2F4C',
+  night: '#0F1C2E',
+  onInk: '#F5F3EE',
+  onAccent: '#FFFFFF',
+
+  green: '#12B076',
+  greenDark: '#5FD3A0',
+  greenDeep: '#7ADDB0',
+  greenSoft: '#12302A',
+  greenBright: '#5FE0A6',
+  greenHover: '#0FA36B',
+
+  amber: '#E9A23B',
+  amberSoft: '#33270F',
+  amberText: '#F0BF6B',
+  amberMuted: '#C9B58F',
+
+  blue: '#6C93FF',
+  blueSoft: '#17233F',
+  blueDark: '#9BB6FF',
+
+  red: '#FF8A7A',
+  redSoft: '#3A1A17',
+
+  previewBackdrop: '#060C16',
+};
 
 /** Translucent values, kept separate because they are rgba() in the export. */
-export const alpha = {
+const lightAlpha = {
   /** Hairline + card borders on paper. */
   border: 'rgba(15,28,46,0.07)',
   borderStrong: 'rgba(15,28,46,0.1)',
@@ -70,10 +127,77 @@ export const alpha = {
   greenFill25: 'rgba(15,163,107,0.25)',
   amberBorder: 'rgba(233,162,59,0.4)',
   amberBorderSoft: 'rgba(233,162,59,0.35)',
-} as const;
+};
+
+type Alphas = { [K in keyof typeof lightAlpha]: string };
+
+const darkAlpha: Alphas = {
+  ...lightAlpha,
+  // The hairlines are ink-on-paper in the export; on a dark ground they are the
+  // same idea drawn in the light text colour, a touch stronger to stay visible.
+  border: 'rgba(242,239,232,0.1)',
+  borderStrong: 'rgba(242,239,232,0.14)',
+  borderHeavy: 'rgba(242,239,232,0.2)',
+  divider: 'rgba(242,239,232,0.08)',
+  tabBorder: 'rgba(242,239,232,0.1)',
+  dashed: 'rgba(242,239,232,0.24)',
+  dashedLight: 'rgba(242,239,232,0.26)',
+  track: 'rgba(242,239,232,0.12)',
+  docRule: 'rgba(242,239,232,0.16)',
+  docRuleSoft: 'rgba(242,239,232,0.14)',
+  toggleOff: 'rgba(242,239,232,0.2)',
+  redBorder: 'rgba(255,138,122,0.4)',
+};
+
+const palettes: Record<ThemeName, { color: Palette; alpha: Alphas }> = {
+  light: { color: lightColor, alpha: lightAlpha },
+  dark: { color: darkColor, alpha: darkAlpha },
+};
+
+// ------------------------------------------------------------- active theme
+// Styles across the app are module-level objects, so the theme cannot arrive
+// through props. Instead `color` and `alpha` read through to whichever palette
+// is active, and `themed()` rebuilds anything derived from them per theme. The
+// provider in ./theme.tsx sets the active theme and remounts the tree.
+
+let active: ThemeName = 'light';
+
+export function setActiveTheme(name: ThemeName) {
+  active = name;
+}
+
+export function activeTheme(): ThemeName {
+  return active;
+}
+
+function live<T extends object>(pick: () => T): T {
+  return new Proxy({} as T, {
+    get: (_target, key) => pick()[key as keyof T],
+    has: (_target, key) => key in pick(),
+    ownKeys: () => Reflect.ownKeys(pick()),
+    getOwnPropertyDescriptor: (_target, key) => {
+      const value = pick()[key as keyof T];
+      return value === undefined
+        ? undefined
+        : { value, enumerable: true, configurable: true, writable: false };
+    },
+  });
+}
+
+export const color: Palette = live(() => palettes[active].color);
+export const alpha: Alphas = live(() => palettes[active].alpha);
+
+/**
+ * For anything built from `color` / `alpha` outside a render — a tone table, a
+ * style sheet. The factory runs once per theme, the first time it is read.
+ */
+export function themed<T extends object>(factory: () => T): T {
+  const cache: Partial<Record<ThemeName, T>> = {};
+  return live(() => (cache[active] ??= factory()));
+}
 
 /** Per-business accent, assigned by index in the design (green, blue, amber). */
-export const businessAccents = [color.green, color.blue, color.amber] as const;
+export const businessAccents: readonly string[] = themed(() => [color.green, color.blue, color.amber]);
 
 export const radius = {
   doc: 6,
